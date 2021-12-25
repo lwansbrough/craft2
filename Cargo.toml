@@ -1,0 +1,14 @@
+[package]
+name = "craft2"
+version = "0.1.0"
+edition = "2021"
+
+[build]
+# target = "wasm32-unknown-unknown"
+target = "x86_64-pc-windows-msvc"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = { git = "https://github.com/bevyengine/bevy" }
+crevice = { git = "https://github.com/bevyengine/bevy", features = ["glam"] }
