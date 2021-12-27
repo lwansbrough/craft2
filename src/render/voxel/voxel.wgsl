@@ -50,30 +50,31 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     var quadric_matrix: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, -1.0);
     var sphere_radius: f32 = max(voxel_volume_world_size.x, max(voxel_volume_world_size.y, voxel_volume_world_size.z)) * 1.732051;
 
-    var sphere_center: vec4<f32> = voxel_volume_uniform.transform[3];
-    var sphere_center_world = sphere_center * voxel_volume_uniform.transform;
+    var sphere_center: vec4<f32> = vec4<f32>(voxel_volume_uniform.transform[3].xyz, 1.0);
     var model_view_proj: mat4x4<f32> = voxel_volume_uniform.transform * view.view_proj;
-    var sphere_center_clip = model_view_proj * sphere_center;
-    out.clip_position = sphere_center_clip;
+
+    out.clip_position = model_view_proj * vec4<f32>(vertex.position.xyz, 1.0);
+
+    var mvp_transpose: mat4x4<f32> = transpose(model_view_proj);
 
     var mat_t: mat3x4<f32> = mat3x4<f32>(
         vec4<f32>(
-            model_view_proj[0].x * sphere_radius,
-            model_view_proj[0].y * sphere_radius,
-            model_view_proj[0].z * sphere_radius,
-            dot(sphere_center, model_view_proj[0])
+            mvp_transpose[0].x * sphere_radius,
+            mvp_transpose[0].y * sphere_radius,
+            mvp_transpose[0].z * sphere_radius,
+            dot(sphere_center, mvp_transpose[0])
         ),
         vec4<f32>(
-            model_view_proj[1].x * sphere_radius,
-            model_view_proj[1].y * sphere_radius,
-            model_view_proj[1].z * sphere_radius,
-            dot(sphere_center, model_view_proj[1])
+            mvp_transpose[1].x * sphere_radius,
+            mvp_transpose[1].y * sphere_radius,
+            mvp_transpose[1].z * sphere_radius,
+            dot(sphere_center, mvp_transpose[1])
         ),
         vec4<f32>(
-            model_view_proj[3].x * sphere_radius,
-            model_view_proj[3].y * sphere_radius,
-            model_view_proj[3].z * sphere_radius,
-            dot(sphere_center, model_view_proj[3])
+            mvp_transpose[3].x * sphere_radius,
+            mvp_transpose[3].y * sphere_radius,
+            mvp_transpose[3].z * sphere_radius,
+            dot(sphere_center, mvp_transpose[3])
         )
     );
 
@@ -94,12 +95,9 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 
     var aabb: vec2<f32> = sqrt((eq_coefs.xy * eq_coefs.xy) - eq_coefs.zw);
 
-    // out.clip_position.x = (out_position.x - (vertex.position.x * (aabb.x / 2.0))) * out.clip_position.w;
-    // out.clip_position.y = (out_position.y - (vertex.position.y * (aabb.y / 2.0))) * out.clip_position.w;
-
-    out.clip_position.x = (out_position.x + (sign(vertex.position.x) * 0.05 * out_position.x)) * out.clip_position.w;
-    out.clip_position.y = (out_position.y + (sign(vertex.position.y) * 0.05 * out_position.y)) * out.clip_position.w;
-
+    out.clip_position.x = (out_position.x + (sign(vertex.position.x) * (aabb.x / 2.0))) * out.clip_position.w;
+    out.clip_position.y = (out_position.y + (sign(vertex.position.y) * (aabb.y / 2.0))) * out.clip_position.w;
+    
     return out;
 }
 
