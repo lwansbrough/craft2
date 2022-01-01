@@ -83,14 +83,26 @@ impl SpecializedPipeline for VoxelPipeline {
 
         let mut shader_defs = Vec::new();
 
-        let vertex_array_stride = 12;
+        let vertex_array_stride = 32;
         let vertex_attributes = vec![
-            // Position
+            // Position (GOTCHA! Vertex_Position isn't first in the buffer due to how Mesh sorts attributes (alphabetically))
+            VertexAttribute {
+                format: VertexFormat::Float32x3,
+                offset: 12,
+                shader_location: 0,
+            },
+            // Normal
             VertexAttribute {
                 format: VertexFormat::Float32x3,
                 offset: 0,
-                shader_location: 0,
-            }
+                shader_location: 1,
+            },
+            // Uv
+            VertexAttribute {
+                format: VertexFormat::Float32x2,
+                offset: 24,
+                shader_location: 2,
+            },
         ];
 
         RenderPipelineDescriptor {
@@ -117,7 +129,7 @@ impl SpecializedPipeline for VoxelPipeline {
             layout: Some(vec![self.view_layout.clone(), self.voxel_uniform_layout.clone(), self.voxel_layout.clone()]),
             primitive: PrimitiveState {
                 front_face: FrontFace::Ccw,
-                cull_mode: Some(Face::Back),
+                cull_mode: Some(Face::Front),
                 polygon_mode: PolygonMode::Fill,
                 clamp_depth: false,
                 conservative: false,

@@ -25,11 +25,16 @@ struct VoxelVolume {
 };
 
 struct Vertex {
-    [[location(0)]] position: vec4<f32>;
+    [[location(0)]] position: vec3<f32>;
+    [[location(1)]] normal: vec3<f32>;
+    [[location(2)]] uv: vec2<f32>;
 };
 
 struct VertexOutput {
     [[builtin(position)]] clip_position: vec4<f32>;
+    [[location(0)]] world_position: vec4<f32>;
+    [[location(1)]] world_normal: vec3<f32>;
+    [[location(2)]] uv: vec2<f32>;
 };
 
 [[group(0), binding(0)]]
@@ -41,157 +46,98 @@ var<uniform> voxel_volume_uniform: VoxelVolumeUniform;
 [[group(2), binding(0)]]
 var<storage, read> voxel_volume: VoxelVolume;
 
+fn get_voxel() -> vec4<f32> {
+}
+
 [[stage(vertex)]]
 fn vertex(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
-    
-    var voxel_volume_world_size = voxel_volume.size * voxel_volume.resolution;
-    var voxel_volume_world_half_size = voxel_volume_world_size / 2.0;
+    let world_position = voxel_volume_uniform.transform * vec4<f32>(vertex.position, 1.0);
 
-    var center: vec4<f32> = vec4<f32>(voxel_volume_uniform.transform[3].xyz, 0.0);
+    out.uv = vertex.uv;
+    out.world_position = world_position;
+    out.clip_position = view.view_proj * world_position;
+    out.world_normal = mat3x3<f32>(
+        voxel_volume_uniform.inverse_transpose_model[0].xyz,
+        voxel_volume_uniform.inverse_transpose_model[1].xyz,
+        voxel_volume_uniform.inverse_transpose_model[2].xyz
+    ) * vertex.normal;
 
-    var model_view_proj: mat4x4<f32> = voxel_volume_uniform.transform * view.view_proj;
-
-    var ftl = vec4<f32>(
-        -voxel_volume_world_half_size.x,
-        voxel_volume_world_half_size.y,
-        voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-
-    var ftr = vec4<f32>(
-        voxel_volume_world_half_size.x,
-        voxel_volume_world_half_size.y,
-        voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-    
-    var fbl = vec4<f32>(
-        -voxel_volume_world_half_size.x,
-        -voxel_volume_world_half_size.y,
-        voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-
-    var fbr = vec4<f32>(
-        voxel_volume_world_half_size.x,
-        -voxel_volume_world_half_size.y,
-        voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-
-    var btl = vec4<f32>(
-        -voxel_volume_world_half_size.x,
-        voxel_volume_world_half_size.y,
-        -voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-
-    var btr = vec4<f32>(
-        voxel_volume_world_half_size.x,
-        voxel_volume_world_half_size.y,
-        -voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-
-    var bbl = vec4<f32>(
-        -voxel_volume_world_half_size.x,
-        -voxel_volume_world_half_size.y,
-        -voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-
-    var bbr = vec4<f32>(
-        voxel_volume_world_half_size.x,
-        -voxel_volume_world_half_size.y,
-        -voxel_volume_world_half_size.z,
-        1.0
-    ) * model_view_proj;
-
-    var aabb_min = vec2<f32>(
-        min(min(min(ftl.x, ftr.x), min(fbl.x, fbr.x)), min(min(btl.x, btr.x), min(bbl.x, bbr.x))),
-        min(min(min(ftl.y, ftr.y), min(fbl.y, fbr.y)), min(min(btl.y, btr.y), min(bbl.y, bbr.y)))
-    );
-
-    var aabb_max = vec2<f32>(
-        max(max(max(ftl.x, ftr.x), max(fbl.x, fbr.x)), max(max(btl.x, btr.x), max(bbl.x, bbr.x))),
-        max(max(max(ftl.y, ftr.y), max(fbl.y, fbr.y)), max(max(btl.y, btr.y), max(bbl.y, bbr.y)))
-    );
-
-    out.clip_position = vec4<f32>(
-        select(aabb_min.x, aabb_max.x, vertex.position.x < 0.0),
-        select(aabb_min.y, aabb_max.y, vertex.position.y < 0.0),
-        (center * model_view_proj).z,
-        1.0
-    );
-
-    // var quadric_matrix: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, -1.0);
-    // var sphere_radius: f32 = max(voxel_volume_world_size.x, max(voxel_volume_world_size.y, voxel_volume_world_size.z)) * 1.732051;
-
-    // var sphere_center: vec4<f32> = vec4<f32>(voxel_volume_uniform.transform[3].xyz, 1.0);
-    // var model_view_proj: mat4x4<f32> = voxel_volume_uniform.transform * view.view_proj;
-
-    // out.clip_position = model_view_proj * vec4<f32>(vertex.position.xyz, 1.0);
-
-    // var mvp_transpose: mat4x4<f32> = transpose(model_view_proj);
-
-    // var mat_t: mat3x4<f32> = mat3x4<f32>(
-    //     vec4<f32>(
-    //         mvp_transpose[0].x * sphere_radius,
-    //         mvp_transpose[0].y * sphere_radius,
-    //         mvp_transpose[0].z * sphere_radius,
-    //         dot(sphere_center, mvp_transpose[0])
-    //     ),
-    //     vec4<f32>(
-    //         mvp_transpose[1].x * sphere_radius,
-    //         mvp_transpose[1].y * sphere_radius,
-    //         mvp_transpose[1].z * sphere_radius,
-    //         dot(sphere_center, mvp_transpose[1])
-    //     ),
-    //     vec4<f32>(
-    //         mvp_transpose[3].x * sphere_radius,
-    //         mvp_transpose[3].y * sphere_radius,
-    //         mvp_transpose[3].z * sphere_radius,
-    //         dot(sphere_center, mvp_transpose[3])
-    //     )
-    // );
-
-    // var mat_d: mat3x4<f32> = mat3x4<f32>(
-    //     mat_t[0] * quadric_matrix, 
-    //     mat_t[1] * quadric_matrix,
-    //     mat_t[2] * quadric_matrix
-    // );
-
-    // var eq_coefs: vec4<f32> = vec4<f32>(
-    //     dot(mat_d[0], mat_t[2]),
-    //     dot(mat_d[1], mat_t[2]),
-    //     dot(mat_d[0], mat_t[0]),
-    //     dot(mat_d[1], mat_t[1])
-    // ) / dot(mat_d[2], mat_t[2]);
-
-    // var out_position: vec4<f32> = vec4<f32>(eq_coefs.x, eq_coefs.y, 0.0, 1.0);
-
-    // var aabb: vec2<f32> = sqrt((eq_coefs.xy * eq_coefs.xy) - eq_coefs.zw);
-
-    // out.clip_position.x = (out_position.x + (sign(vertex.position.x) * (aabb.x / 2.0))) * out.clip_position.w;
-    // out.clip_position.y = (out_position.y + (sign(vertex.position.y) * (aabb.y / 2.0))) * out.clip_position.w;
-    
     return out;
 }
 
-// struct FragmentInput {
-//     [[builtin(front_facing)]] is_front: bool;
-//     [[location(0)]] world_position: vec4<f32>;
-//     [[location(1)]] world_normal: vec3<f32>;
-//     [[location(2)]] uv: vec2<f32>;
-// };
-
-// [[stage(fragment)]]
-// fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
-//     return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-// }
+struct FragmentInput {
+    [[builtin(front_facing)]] is_front: bool;
+    [[builtin(position)]] position: bool;
+    [[location(0)]] world_position: vec4<f32>;
+    [[location(1)]] world_normal: vec3<f32>;
+    [[location(2)]] uv: vec2<f32>;
+};
 
 [[stage(fragment)]]
-fn fragment(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
+    let world_size = voxel_volume.size / voxel_volume.resolution;
+    let camera_to_model = view.inverse_view * voxel_volume_uniform.transform;
+    let model_back_face_pos = in.position;
+    let model_ray_origin = (camera_to_model * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+    let model_ray_dir = normalize(model_back_face_pos - model_ray_origin);
+    let center_offset = vec3<f32>(0.5, 0.5, 0.5) * world_size;
+
+    let model_n = -sign(model_ray_origin);
+    let d = -center_offset;
+    let t = -(model_ray_origin * model_n - d) / (model_ray_dir * model_n);
+    let f = sign(floor(abs(model_ray_origin) * 2.0 / world_size));
+    let best_t = max(max(t.x * f.x, t.y * f.y), t.z * f.z);
+    let best = model_back_face_pos;
+    if (f.x > 0.0 || f.y > 0.0 || f.z > 0.0) {
+        best = model_ray_origin + best_t * model_ray_dir;
+    }
+
+    let model_front_face_pos = (best + center_offset);
+
+    // Convert the local space position into voxel space, ie. [-1, 1] -> [0, 32]
+    let voxel_position = model_front_face_pos * voxel_volume_size / scale;
+
+    let ray_dir = model_ray_dir;
+    let ray_position = voxel_position + 0.0001 * ray_dir;
+    let map_pos = floor(ray_position);
+    let delta_dist = abs(vec3<f32>(length(ray_dir)) / ray_dir);
+	let ray_step = vec3(sign(ray_dir));
+	let side_dist = (sign(ray_dir) * (map_pos - ray_position) + (sign(ray_dir) * 0.5) + 0.5) * delta_dist; 
+	
+	vec3<bool> mask;
+	
+    vec4<f32> color;
+
+	for (let i: i32 = 0; i < 512; i++) {
+        if (any(map_pos >= voxel_volume_size)) {
+            color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+            break;
+        }
+        if (any(map_pos < vec3(0.0))) {
+            color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+            break;
+        }
+
+        color = get_voxel(map_pos);
+        
+		if (color.a != 0.0)
+            break;
+
+		mask = side_dist.xyz <= min(side_dist.yzx, side_dist.zxy);
+        side_dist += vec3<f32>(mask) * delta_dist;
+        map_pos += vec3<f32>(mask) * ray_step;
+	}
+	
+	if (mask.x) {
+		color *= vec4<f32>(vec3<f32>(0.5), 1.0);
+	}
+	if (mask.y) {
+		color *= vec4<f32>(vec3<f32>(1.0), 1.0);
+	}
+	if (mask.z) {
+		color *= vec4<f32>(vec3<f32>(0.75), 1.0);
+	}
+
+    return color;
 }

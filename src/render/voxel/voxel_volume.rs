@@ -1,4 +1,4 @@
-use bevy::{reflect::TypeUuid, math::{Vec3, Mat4}, render::{render_asset::{RenderAsset, PrepareAssetError}, render_resource::{Buffer, BindGroup, BufferInitDescriptor, BufferUsages, BindGroupDescriptor, BindGroupEntry}, renderer::RenderDevice}, ecs::system::{lifetimeless::SRes, SystemParamItem}, core::{cast_slice, bytes_of}, prelude::{HandleUntyped, Component}};
+use bevy::{reflect::TypeUuid, math::{Vec3, Mat4}, render::{render_asset::{RenderAsset, PrepareAssetError}, render_resource::{Buffer, BindGroup, BufferInitDescriptor, BufferUsages, BindGroupDescriptor, BindGroupEntry, IndexFormat}, renderer::RenderDevice}, ecs::system::{lifetimeless::SRes, SystemParamItem}, core::{cast_slice, bytes_of}, prelude::{HandleUntyped, Component, ResMut, Assets, Mesh, shape}};
 use crevice::std140::{AsStd140};
 
 use crate::VoxelPipeline;
@@ -12,7 +12,8 @@ pub struct VoxelVolume {
     pub resolution: f32,
     pub size: Vec3,
     pub palette: [u32; 255],
-    pub data: Vec<u32>
+    pub data: Vec<u32>,
+    pub mesh: Mesh
 }
 
 impl VoxelVolume {
@@ -21,11 +22,17 @@ impl VoxelVolume {
     }
 
     pub fn with_resolution(size: [u32; 3], voxels_per_meter: u32) -> Self {
+        let resolution = 1.0f32 / (voxels_per_meter as f32);
         VoxelVolume {
-            resolution: 1.0f32 / (voxels_per_meter as f32),
+            resolution,
             size: Vec3::new(size[0] as f32, size[1] as f32, size[2] as f32),
             palette: [0;  255],
-            data: Vec::new()
+            data: Vec::new(),
+            mesh: Mesh::from(shape::Box::new(
+                resolution * size[0] as f32,
+                resolution * size[1] as f32,
+                resolution * size[2] as f32
+            ))
         }
     }
 }
@@ -61,6 +68,10 @@ impl VoxelVolume {
         std::mem::size_of::<u32>() * self.palette.len() +
         std::mem::size_of::<u32>() * self.data.len()
     }
+
+    pub fn mesh(&self) -> &Mesh {
+        &self.mesh
+    }
 }
 
 /// The GPU representation of the uniform data of a [`VoxelVolume`].
@@ -75,7 +86,8 @@ pub struct VoxelVolumeUniform {
 pub struct GpuIndexInfo {
     /// Contains all index data of a mesh.
     pub buffer: Buffer,
-    pub count: u32
+    pub count: u32,
+    pub index_format: IndexFormat,
 }
 
 /// The GPU representation of a [`VoxelVolume`].
@@ -98,26 +110,12 @@ impl RenderAsset for VoxelVolume {
     }
 
     fn prepare_asset(
-        extracted_asset: Self::ExtractedAsset,
+        voxel_volume: Self::ExtractedAsset,
         (render_device, voxel_pipeline): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
-        let mut vertices: Vec<[f32; 3]> = Vec::new();
-        vertices.push([-1.0, 1.0, 0.0]);
-        vertices.push([-1.0, -1.0, 0.0]);
-        vertices.push([1.0, -1.0, 0.0]);
-        vertices.push([1.0, 1.0, 0.0]);
-        
-        let mut indices: Vec<u16> = Vec::new();
-        indices.push(0);
-        indices.push(1);
-        indices.push(2);
-        indices.push(0);
-        indices.push(3);
-        indices.push(2);
+        let mesh = voxel_volume.mesh();
 
-        let vertex_buffer_data = cast_slice(&vertices);
-        let index_buffer_data = cast_slice(&indices);
-
+        let vertex_buffer_data = mesh.get_vertex_buffer_data();
         let vertex_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             usage: BufferUsages::VERTEX,
             label: None,
@@ -125,18 +123,19 @@ impl RenderAsset for VoxelVolume {
         });
 
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: extracted_asset.to_bytes().as_slice(),
+            contents: voxel_volume.to_bytes().as_slice(),
             label: None,
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         });
 
-        let index_info = Some(GpuIndexInfo {
+        let index_info = mesh.get_index_buffer_bytes().map(|data| GpuIndexInfo {
             buffer: render_device.create_buffer_with_data(&BufferInitDescriptor {
                 usage: BufferUsages::INDEX,
-                contents: index_buffer_data,
+                contents: data,
                 label: None,
             }),
-            count: 6
+            count: mesh.indices().unwrap().len() as u32,
+            index_format: mesh.indices().unwrap().into(),
         });
 
         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
