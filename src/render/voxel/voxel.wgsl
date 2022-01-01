@@ -46,57 +46,135 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
     
     var voxel_volume_world_size = voxel_volume.size * voxel_volume.resolution;
+    var voxel_volume_world_half_size = voxel_volume_world_size / 2.0;
 
-    var quadric_matrix: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, -1.0);
-    var sphere_radius: f32 = max(voxel_volume_world_size.x, max(voxel_volume_world_size.y, voxel_volume_world_size.z)) * 1.732051;
+    var center: vec4<f32> = vec4<f32>(voxel_volume_uniform.transform[3].xyz, 0.0);
 
-    var sphere_center: vec4<f32> = vec4<f32>(voxel_volume_uniform.transform[3].xyz, 1.0);
     var model_view_proj: mat4x4<f32> = voxel_volume_uniform.transform * view.view_proj;
 
-    out.clip_position = model_view_proj * vec4<f32>(vertex.position.xyz, 1.0);
+    var ftl = vec4<f32>(
+        -voxel_volume_world_half_size.x,
+        voxel_volume_world_half_size.y,
+        voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
 
-    var mvp_transpose: mat4x4<f32> = transpose(model_view_proj);
+    var ftr = vec4<f32>(
+        voxel_volume_world_half_size.x,
+        voxel_volume_world_half_size.y,
+        voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
+    
+    var fbl = vec4<f32>(
+        -voxel_volume_world_half_size.x,
+        -voxel_volume_world_half_size.y,
+        voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
 
-    var mat_t: mat3x4<f32> = mat3x4<f32>(
-        vec4<f32>(
-            mvp_transpose[0].x * sphere_radius,
-            mvp_transpose[0].y * sphere_radius,
-            mvp_transpose[0].z * sphere_radius,
-            dot(sphere_center, mvp_transpose[0])
-        ),
-        vec4<f32>(
-            mvp_transpose[1].x * sphere_radius,
-            mvp_transpose[1].y * sphere_radius,
-            mvp_transpose[1].z * sphere_radius,
-            dot(sphere_center, mvp_transpose[1])
-        ),
-        vec4<f32>(
-            mvp_transpose[3].x * sphere_radius,
-            mvp_transpose[3].y * sphere_radius,
-            mvp_transpose[3].z * sphere_radius,
-            dot(sphere_center, mvp_transpose[3])
-        )
+    var fbr = vec4<f32>(
+        voxel_volume_world_half_size.x,
+        -voxel_volume_world_half_size.y,
+        voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
+
+    var btl = vec4<f32>(
+        -voxel_volume_world_half_size.x,
+        voxel_volume_world_half_size.y,
+        -voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
+
+    var btr = vec4<f32>(
+        voxel_volume_world_half_size.x,
+        voxel_volume_world_half_size.y,
+        -voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
+
+    var bbl = vec4<f32>(
+        -voxel_volume_world_half_size.x,
+        -voxel_volume_world_half_size.y,
+        -voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
+
+    var bbr = vec4<f32>(
+        voxel_volume_world_half_size.x,
+        -voxel_volume_world_half_size.y,
+        -voxel_volume_world_half_size.z,
+        1.0
+    ) * model_view_proj;
+
+    var aabb_min = vec2<f32>(
+        min(min(min(ftl.x, ftr.x), min(fbl.x, fbr.x)), min(min(btl.x, btr.x), min(bbl.x, bbr.x))),
+        min(min(min(ftl.y, ftr.y), min(fbl.y, fbr.y)), min(min(btl.y, btr.y), min(bbl.y, bbr.y)))
     );
 
-    var mat_d: mat3x4<f32> = mat3x4<f32>(
-        mat_t[0] * quadric_matrix, 
-        mat_t[1] * quadric_matrix,
-        mat_t[2] * quadric_matrix
+    var aabb_max = vec2<f32>(
+        max(max(max(ftl.x, ftr.x), max(fbl.x, fbr.x)), max(max(btl.x, btr.x), max(bbl.x, bbr.x))),
+        max(max(max(ftl.y, ftr.y), max(fbl.y, fbr.y)), max(max(btl.y, btr.y), max(bbl.y, bbr.y)))
     );
 
-    var eq_coefs: vec4<f32> = vec4<f32>(
-        dot(mat_d[0], mat_t[2]),
-        dot(mat_d[1], mat_t[2]),
-        dot(mat_d[0], mat_t[0]),
-        dot(mat_d[1], mat_t[1])
-    ) / dot(mat_d[2], mat_t[2]);
+    out.clip_position = vec4<f32>(
+        select(aabb_min.x, aabb_max.x, vertex.position.x < 0.0),
+        select(aabb_min.y, aabb_max.y, vertex.position.y < 0.0),
+        (center * model_view_proj).z,
+        1.0
+    );
 
-    var out_position: vec4<f32> = vec4<f32>(eq_coefs.x, eq_coefs.y, 0.0, 1.0);
+    // var quadric_matrix: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, -1.0);
+    // var sphere_radius: f32 = max(voxel_volume_world_size.x, max(voxel_volume_world_size.y, voxel_volume_world_size.z)) * 1.732051;
 
-    var aabb: vec2<f32> = sqrt((eq_coefs.xy * eq_coefs.xy) - eq_coefs.zw);
+    // var sphere_center: vec4<f32> = vec4<f32>(voxel_volume_uniform.transform[3].xyz, 1.0);
+    // var model_view_proj: mat4x4<f32> = voxel_volume_uniform.transform * view.view_proj;
 
-    out.clip_position.x = (out_position.x + (sign(vertex.position.x) * (aabb.x / 2.0))) * out.clip_position.w;
-    out.clip_position.y = (out_position.y + (sign(vertex.position.y) * (aabb.y / 2.0))) * out.clip_position.w;
+    // out.clip_position = model_view_proj * vec4<f32>(vertex.position.xyz, 1.0);
+
+    // var mvp_transpose: mat4x4<f32> = transpose(model_view_proj);
+
+    // var mat_t: mat3x4<f32> = mat3x4<f32>(
+    //     vec4<f32>(
+    //         mvp_transpose[0].x * sphere_radius,
+    //         mvp_transpose[0].y * sphere_radius,
+    //         mvp_transpose[0].z * sphere_radius,
+    //         dot(sphere_center, mvp_transpose[0])
+    //     ),
+    //     vec4<f32>(
+    //         mvp_transpose[1].x * sphere_radius,
+    //         mvp_transpose[1].y * sphere_radius,
+    //         mvp_transpose[1].z * sphere_radius,
+    //         dot(sphere_center, mvp_transpose[1])
+    //     ),
+    //     vec4<f32>(
+    //         mvp_transpose[3].x * sphere_radius,
+    //         mvp_transpose[3].y * sphere_radius,
+    //         mvp_transpose[3].z * sphere_radius,
+    //         dot(sphere_center, mvp_transpose[3])
+    //     )
+    // );
+
+    // var mat_d: mat3x4<f32> = mat3x4<f32>(
+    //     mat_t[0] * quadric_matrix, 
+    //     mat_t[1] * quadric_matrix,
+    //     mat_t[2] * quadric_matrix
+    // );
+
+    // var eq_coefs: vec4<f32> = vec4<f32>(
+    //     dot(mat_d[0], mat_t[2]),
+    //     dot(mat_d[1], mat_t[2]),
+    //     dot(mat_d[0], mat_t[0]),
+    //     dot(mat_d[1], mat_t[1])
+    // ) / dot(mat_d[2], mat_t[2]);
+
+    // var out_position: vec4<f32> = vec4<f32>(eq_coefs.x, eq_coefs.y, 0.0, 1.0);
+
+    // var aabb: vec2<f32> = sqrt((eq_coefs.xy * eq_coefs.xy) - eq_coefs.zw);
+
+    // out.clip_position.x = (out_position.x + (sign(vertex.position.x) * (aabb.x / 2.0))) * out.clip_position.w;
+    // out.clip_position.y = (out_position.y + (sign(vertex.position.y) * (aabb.y / 2.0))) * out.clip_position.w;
     
     return out;
 }
