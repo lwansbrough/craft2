@@ -1,7 +1,7 @@
 use bevy::{render::{render_phase::{SetItemPipeline, EntityRenderCommand, TrackedRenderPass, RenderCommandResult, DrawFunctions, RenderPhase}, render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, SpecializedPipeline, RenderPipelineDescriptor, Shader, RenderPipelineCache, SpecializedPipelines, IndexFormat, PrimitiveTopology, PolygonMode, PrimitiveState, FrontFace, VertexState, VertexBufferLayout, ColorTargetState, TextureFormat, ColorWrites, DepthStencilState, CompareFunction, StencilState, StencilFaceState, DepthBiasState, FragmentState, VertexStepMode, MultisampleState, VertexAttribute, VertexFormat, BlendState, Face, BindGroup, BindGroupEntry, BindGroupDescriptor, BufferSize}, renderer::RenderDevice, render_asset::RenderAssets, view::{Msaa, ExtractedView, VisibleEntities, ViewUniform, ViewUniforms, ViewUniformOffset}, mesh::Mesh, texture::BevyDefault, render_component::{ComponentUniforms, DynamicUniformIndex}}, prelude::{FromWorld, World, Handle, Entity, Res, ResMut, Query, With, GlobalTransform, ComputedVisibility, Local, Commands, Component}, ecs::system::{lifetimeless::{SRes, SQuery, Read}, SystemParamItem}, core_pipeline::Transparent3d};
 use crevice::std140::AsStd140;
 
-use crate::{VOXEL_SHADER_HANDLE, VoxelVolume, VoxelVolumeUniform};
+use crate::{VOXEL_SHADER_HANDLE, VoxelVolume, VoxelVolumeUniform, GpuBufferInfo};
 
 #[derive(Clone)]
 pub struct VoxelPipeline {
@@ -133,7 +133,7 @@ impl SpecializedPipeline for VoxelPipeline {
                 polygon_mode: PolygonMode::Fill,
                 clamp_depth: false,
                 conservative: false,
-                topology: PrimitiveTopology::TriangleStrip,
+                topology: PrimitiveTopology::TriangleList,
                 strip_index_format: None,
             },
             depth_stencil: Some(DepthStencilState {
@@ -313,13 +313,19 @@ impl EntityRenderCommand for DrawVoxel {
         if let Some(gpu_voxel_volume) = voxel_volumes.into_inner().get(voxel_volume_handle) {
             pass.set_vertex_buffer(0, gpu_voxel_volume.vertex_buffer.slice(..));
 
-            if let Some(index_info) = &gpu_voxel_volume.index_info {
-                pass.set_index_buffer(index_info.buffer.slice(..), 0, IndexFormat::Uint16);
-                pass.draw_indexed(0..index_info.count, 0, 0..1);
-            } else {
-                panic!("non-indexed drawing not supported yet")
+            match &gpu_voxel_volume.index_info {
+                GpuBufferInfo::Indexed {
+                    buffer,
+                    index_format,
+                    count
+                } => {
+                    pass.set_index_buffer(buffer.slice(..), 0, *index_format);
+                    pass.draw_indexed(0..*count, 0, 0..1);
+                }
+                GpuBufferInfo::NonIndexed { vertex_count } => {
+                    pass.draw(0..*vertex_count, 0..1);
+                }
             }
-
             RenderCommandResult::Success
         } else {
             RenderCommandResult::Failure

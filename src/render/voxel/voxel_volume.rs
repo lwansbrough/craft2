@@ -1,7 +1,7 @@
 use bevy::{reflect::TypeUuid, math::{Vec3, Mat4}, render::{render_asset::{RenderAsset, PrepareAssetError}, render_resource::{Buffer, BindGroup, BufferInitDescriptor, BufferUsages, BindGroupDescriptor, BindGroupEntry, IndexFormat}, renderer::RenderDevice}, ecs::system::{lifetimeless::SRes, SystemParamItem}, core::{cast_slice, bytes_of}, prelude::{HandleUntyped, Component, ResMut, Assets, Mesh, shape}};
 use crevice::std140::{AsStd140};
 
-use crate::VoxelPipeline;
+use crate::{VoxelPipeline, Octree};
 
 pub const DEFAULT_VOXEL_VOLUME_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(VoxelVolume::TYPE_UUID, 12003909316817809417);
@@ -11,8 +11,8 @@ pub const DEFAULT_VOXEL_VOLUME_HANDLE: HandleUntyped =
 pub struct VoxelVolume {
     pub resolution: f32,
     pub size: Vec3,
-    pub palette: [u32; 255],
-    pub data: Vec<u32>,
+    pub palette: [u32; 256],
+    pub data: Octree,
     pub mesh: Mesh
 }
 
@@ -26,8 +26,8 @@ impl VoxelVolume {
         VoxelVolume {
             resolution,
             size: Vec3::new(size[0] as f32, size[1] as f32, size[2] as f32),
-            palette: [0;  255],
-            data: Vec::new(),
+            palette: [0;  256],
+            data: Octree::new(8),
             mesh: Mesh::from(shape::Box::new(
                 resolution * size[0] as f32,
                 resolution * size[1] as f32,
@@ -41,32 +41,30 @@ impl VoxelVolume {
     pub fn to_bytes(&self) -> Vec<u8> {
         let resolution_vec = Vec3::splat(self.resolution);
         let resolution_bytes = bytes_of(&resolution_vec);
+        let resolution_len = 16; // aligned length
         let size_bytes = bytes_of(&self.size);
+        let size_len = 16;
         let palette_bytes = cast_slice(self.palette.as_slice());
-        let data_bytes = cast_slice(self.data.as_slice());
+        let palette_len = 1024;
+        let data = bincode::serialize(&self.data).unwrap();
+        let data_bytes = cast_slice(data.as_slice());
+        let byte_len = resolution_len + size_len + palette_len + data_bytes.len();
 
-        let mut buffer = vec![0; self.byte_len()];
+        let mut buffer = vec![0; byte_len];
 
         let mut offset = 0;
         buffer[offset..resolution_bytes.len()].copy_from_slice(resolution_bytes);
 
-        offset += resolution_bytes.len();
+        offset += resolution_len;
         buffer[offset..(offset + size_bytes.len())].copy_from_slice(size_bytes);
 
-        offset += size_bytes.len();
+        offset += size_len;
         buffer[offset..(offset + palette_bytes.len())].copy_from_slice(palette_bytes);
 
-        offset += palette_bytes.len();
+        offset += palette_len;
         buffer[offset..(offset + data_bytes.len())].copy_from_slice(data_bytes);
 
         buffer
-    }
-
-    pub fn byte_len(&self) -> usize {
-        std::mem::size_of::<Vec3>() +
-        std::mem::size_of::<Vec3>() +
-        std::mem::size_of::<u32>() * self.palette.len() +
-        std::mem::size_of::<u32>() * self.data.len()
     }
 
     pub fn mesh(&self) -> &Mesh {
@@ -83,11 +81,16 @@ pub struct VoxelVolumeUniform {
 
 /// The index info of a [`GpuVoxelVolume`].
 #[derive(Debug, Clone)]
-pub struct GpuIndexInfo {
-    /// Contains all index data of a mesh.
-    pub buffer: Buffer,
-    pub count: u32,
-    pub index_format: IndexFormat,
+pub enum GpuBufferInfo {
+    Indexed {
+        /// Contains all index data of a mesh.
+        buffer: Buffer,
+        count: u32,
+        index_format: IndexFormat,
+    },
+    NonIndexed {
+        vertex_count: u32,
+    },
 }
 
 /// The GPU representation of a [`VoxelVolume`].
@@ -98,7 +101,7 @@ pub struct GpuVoxelVolume {
     pub buffer: Buffer,
     /// The bind group specifying how the [`VoxelVolumeUniformData`] and [`VoxelVolumeBufferData`] are bound.
     pub bind_group: BindGroup,
-    pub index_info: Option<GpuIndexInfo>
+    pub index_info: GpuBufferInfo
 }
 
 impl RenderAsset for VoxelVolume {
@@ -128,7 +131,11 @@ impl RenderAsset for VoxelVolume {
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         });
 
-        let index_info = mesh.get_index_buffer_bytes().map(|data| GpuIndexInfo {
+        let index_info = mesh.get_index_buffer_bytes().map_or(
+            GpuBufferInfo::NonIndexed {
+                vertex_count: mesh.count_vertices() as u32
+            },
+            |data| GpuBufferInfo::Indexed {
             buffer: render_device.create_buffer_with_data(&BufferInitDescriptor {
                 usage: BufferUsages::INDEX,
                 contents: data,

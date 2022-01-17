@@ -40,24 +40,26 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut voxel_volumes: ResMut<Assets<VoxelVolume>>,
 ) {
+    let mut test = VoxelVolume::new([16, 16, 16]);
+    test.data.add_data(0, 0, 0, [0, 0, 69]);
     // voxel volume
     commands.spawn_bundle(VoxelBundle {
         transform: Transform::from_xyz(2.0, 2.0, 0.0),
-        volume: voxel_volumes.add(VoxelVolume::new([16, 16, 16])),
+        volume: voxel_volumes.add(test),
         ..Default::default()
     });
 
-    // sphere
-    commands.spawn_bundle(PbrBundle {
-        transform: Transform::from_xyz(2.0, 2.0, 0.0),
-        mesh: meshes.add(Mesh::from(shape::Icosphere { radius: 0.5, subdivisions: 5 })),
-        material: materials.add(StandardMaterial {
-            base_color: Color::BLUE,
-            perceptual_roughness: 1.0,
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
+    // // sphere
+    // commands.spawn_bundle(PbrBundle {
+    //     transform: Transform::from_xyz(2.0, 2.0, 0.0),
+    //     mesh: meshes.add(Mesh::from(shape::Icosphere { radius: 0.5, subdivisions: 5 })),
+    //     material: materials.add(StandardMaterial {
+    //         base_color: Color::BLUE,
+    //         perceptual_roughness: 1.0,
+    //         ..Default::default()
+    //     }),
+    //     ..Default::default()
+    // });
 
     // ground plane
     commands.spawn_bundle(PbrBundle {
