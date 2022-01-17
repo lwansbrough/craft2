@@ -41,6 +41,7 @@ struct VertexOutput {
     [[location(0)]] world_position: vec4<f32>;
     [[location(1)]] world_normal: vec3<f32>;
     [[location(2)]] uv: vec2<f32>;
+    [[location(3)]] vertex_position: vec3<f32>;
 };
 
 [[group(0), binding(0)]]
@@ -53,7 +54,7 @@ var<uniform> voxel_volume_uniform: VoxelVolumeUniform;
 var<storage, read> voxel_volume: VoxelVolume;
 
 fn get_voxel(pos: vec3<f32>) -> vec4<f32> {
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    return vec4<f32>(pos.x / 16.0, pos.y / 16.0, pos.z / 16.0, 1.0);
 }
 
 [[stage(vertex)]]
@@ -69,6 +70,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
         voxel_volume_uniform.inverse_transpose_model[1].xyz,
         voxel_volume_uniform.inverse_transpose_model[2].xyz
     ) * vertex.normal;
+    out.vertex_position = vertex.position;
 
     return out;
 }
@@ -79,13 +81,14 @@ struct FragmentInput {
     [[location(0)]] world_position: vec4<f32>;
     [[location(1)]] world_normal: vec3<f32>;
     [[location(2)]] uv: vec2<f32>;
+    [[location(3)]] vertex_position: vec3<f32>;
 };
 
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let world_size = voxel_volume.size * voxel_volume.resolution;
     let camera_to_model = view.inverse_view * voxel_volume_uniform.transform;
-    let model_back_face_pos = in.position.xyz / vec3<f32>(view.width, view.height, 1.0);
+    let model_back_face_pos = in.vertex_position;
     let model_ray_origin = (camera_to_model * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
     let model_ray_dir = normalize(model_back_face_pos - model_ray_origin);
     let center_offset = vec3<f32>(0.5, 0.5, 0.5) * world_size;
@@ -111,7 +114,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	var side_dist = (sign(ray_dir) * (map_pos - ray_position) + (sign(ray_dir) * 0.5) + 0.5) * delta_dist; 
 	
 	var mask: vec3<bool>;
-    var color: vec4<f32>;
+    var color: vec4<f32> = vec4<f32>(1.0, 0.0, 1.0, 1.0);
 
 	for (var i: i32 = 0; i < 512; i = i + 1) {
         if (any(map_pos >= voxel_volume.size)) {
@@ -143,7 +146,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	if (mask.z) {
 		color = color * vec4<f32>(vec3<f32>(0.75), 1.0);
 	}
-
-    return vec4<f32>(1.0, 0.0, 1.0, 1.0);
-    // return color;
+    
+    // return vec4<f32>(1.0, 0.0, 1.0, 1.0);
+    return color;
 }
