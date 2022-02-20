@@ -1,5 +1,4 @@
-use bevy::{reflect::TypeUuid, math::{Vec3, Mat4}, render::{render_asset::{RenderAsset, PrepareAssetError}, render_resource::{Buffer, BindGroup, BufferInitDescriptor, BufferUsages, BindGroupDescriptor, BindGroupEntry, IndexFormat}, renderer::RenderDevice}, ecs::system::{lifetimeless::SRes, SystemParamItem}, core::{cast_slice, bytes_of}, prelude::{HandleUntyped, Component, ResMut, Assets, Mesh, shape}};
-use crevice::std140::{AsStd140};
+use bevy::{reflect::TypeUuid, math::{Vec3, Mat4}, render::{render_asset::{RenderAsset, PrepareAssetError}, render_resource::{Buffer, BindGroup, BufferInitDescriptor, BufferUsages, BindGroupDescriptor, BindGroupEntry, IndexFormat, std140::AsStd140}, renderer::RenderDevice}, ecs::system::{lifetimeless::SRes, SystemParamItem}, core::{cast_slice, bytes_of}, prelude::{HandleUntyped, Component, ResMut, Assets, Mesh, shape}};
 
 use crate::{VoxelPipeline, Octree};
 
@@ -22,12 +21,13 @@ impl VoxelVolume {
     }
 
     pub fn with_resolution(size: [u32; 3], voxels_per_meter: u32) -> Self {
+        let max_size = size[0].max(size[1]).max(size[2]);
         let resolution = 1.0f32 / (voxels_per_meter as f32);
         VoxelVolume {
             resolution,
             size: Vec3::new(size[0] as f32, size[1] as f32, size[2] as f32),
             palette: [0;  256],
-            data: Octree::new(8),
+            data: Octree::new((max_size as f32).log2() as u8),
             mesh: Mesh::from(shape::Box::new(
                 resolution * size[0] as f32,
                 resolution * size[1] as f32,
@@ -46,7 +46,7 @@ impl VoxelVolume {
         let size_len = 16;
         let palette_bytes = cast_slice(self.palette.as_slice());
         let palette_len = 1024;
-        let data = bincode::serialize(&self.data).unwrap();
+        let data = &self.data.to_bytes();
         let data_bytes = cast_slice(data.as_slice());
         let byte_len = resolution_len + size_len + palette_len + data_bytes.len();
 
@@ -76,6 +76,7 @@ impl VoxelVolume {
 #[derive(Component, Clone, AsStd140)]
 pub struct VoxelVolumeUniform {
     pub transform: Mat4,
+    pub inverse_transform: Mat4,
     pub inverse_transpose_model: Mat4,
 }
 

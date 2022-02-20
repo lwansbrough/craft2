@@ -1,6 +1,6 @@
-[[block]]
 struct View {
     view_proj: mat4x4<f32>;
+    view: mat4x4<f32>;
     inverse_view: mat4x4<f32>;
     projection: mat4x4<f32>;
     world_position: vec3<f32>;
@@ -10,24 +10,25 @@ struct View {
     height: f32;
 };
 
-[[block]]
 struct VoxelVolumeUniform {
     transform: mat4x4<f32>;
+    inverse_transform: mat4x4<f32>;
     inverse_transpose_model: mat4x4<f32>;
 };
 
-// struct Octree {
-//     info: u32;
-//     data: array<u32>;
-// };
+struct GridCell {
+    data: u32;
+};
 
-[[block]]
+struct IndirectionGrid {
+    cells: array<GridCell, 8>;
+};
+
 struct VoxelVolume {
-    resolution: vec3<f32>;
-    size: vec3<f32>;
+    [[align(16)]] resolution: vec3<f32>;
+    [[align(16)]] size: vec3<f32>;
     palette: array<u32, 256>;
-    data: array<u32>;
-    // data: Octree;
+    indirection_pool: array<IndirectionGrid>;
 };
 
 struct Vertex {
@@ -53,8 +54,66 @@ var<uniform> voxel_volume_uniform: VoxelVolumeUniform;
 [[group(2), binding(0)]]
 var<storage, read> voxel_volume: VoxelVolume;
 
-fn get_voxel(pos: vec3<f32>) -> vec4<f32> {
-    return vec4<f32>(pos.x / 16.0, pos.y / 16.0, pos.z / 16.0, 1.0);
+let COLOR_RED_MASK = 0x000000FFu;
+let COLOR_GREEN_MASK = 0x0000FF00u;
+let COLOR_BLUE_MASK = 0x00FF0000u;
+let COLOR_ALPHA_MASK = 0xFF000000u;
+
+let CELL_TYPE_MASK: u32 = 0x000000FFu;
+let CELL_DATA_MASK: u32 = 0xFFFFFF00u;
+
+fn get_voxel(pos_in: vec3<f32>) -> vec4<f32> {
+    let color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    var pos = vec3<u32>(pos_in);
+    
+    var pool_index = 0u;
+    var grid_size = u32(max(max(voxel_volume.size.x, voxel_volume.size.y), voxel_volume.size.z));
+    var grid_cell_size = grid_size / 2u;
+    let max_depth: i32 = i32(log2(f32(grid_size)));
+    
+    for (var i: i32 = 0; i < max_depth; i = i + 1) {
+        let grid = &voxel_volume.indirection_pool[pool_index];
+        let grid_coord_x = u32(pos.x / grid_cell_size);
+        let grid_coord_y = u32(pos.y / grid_cell_size);
+        let grid_coord_z = u32(pos.z / grid_cell_size);
+        let grid_index = grid_coord_x + grid_coord_y * 2u + grid_coord_z * 2u * 2u;
+        let cell = (*grid).cells[grid_index].data;
+        let cell_type = (cell & CELL_TYPE_MASK);
+
+        switch (cell_type) {
+            case 1u: {
+                pool_index = (cell & CELL_DATA_MASK) >> 8u;
+                grid_cell_size = grid_cell_size / 2u;
+                pos = vec3<u32>(
+                    pos.x - grid_coord_x * grid_cell_size,
+                    pos.y - grid_coord_y * grid_cell_size,
+                    pos.z - grid_coord_z * grid_cell_size
+                );
+            }
+            case 2u: {
+                let palette_index = (cell & CELL_DATA_MASK) >> 8u;
+                let palette_color = voxel_volume.palette[palette_index];
+
+                return vec4<f32>(1.0, 0.0, 1.0, 1.0);
+                
+                // return vec4<f32>(
+                //     f32(palette_color & COLOR_ALPHA_MASK) / 255.0
+                //     f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0,
+                //     f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0,
+                //     f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0,
+                // );
+            }
+            default: {
+                // discard;
+                return vec4<f32>(f32(grid_coord_x) / f32(grid_cell_size), f32(grid_coord_y) / f32(grid_cell_size), f32(grid_coord_z) / f32(grid_cell_size), 1.0);
+                // return vec4<f32>(f32(pos.x) / voxel_volume.size.x, f32(pos.y) / voxel_volume.size.y, f32(pos.z) / voxel_volume.size.z, 1.0);
+            }
+        }
+    }
+
+    // return vec4<f32>(0.0, 0.0, 1.0, 1.0);
+
+    discard;
 }
 
 [[stage(vertex)]]
@@ -87,7 +146,7 @@ struct FragmentInput {
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let world_size = voxel_volume.size * voxel_volume.resolution;
-    let camera_to_model = view.inverse_view * voxel_volume_uniform.transform;
+    let camera_to_model = voxel_volume_uniform.inverse_transform * view.view;
     let model_back_face_pos = in.vertex_position;
     let model_ray_origin = (camera_to_model * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
     let model_ray_dir = normalize(model_back_face_pos - model_ray_origin);
@@ -95,7 +154,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     let model_n = -sign(model_ray_origin);
     let d = -center_offset;
-    let t = -(model_ray_origin * model_n - d) / (model_ray_dir * model_n);
+    let t = -(model_ray_origin * model_n - d) / (model_ray_dir * model_n); // division by model_ray_dir here blows t up to a huge number? or maybe model_ray_origin is too big by this point (ie. miscalculated?)
     let f = sign(floor(abs(model_ray_origin) * 2.0 / world_size));
     let best_t = max(max(t.x * f.x, t.y * f.y), t.z * f.z);
     let best = select(model_back_face_pos, model_ray_origin + best_t * model_ray_dir, f.x > 0.0 || f.y > 0.0 || f.z > 0.0);
@@ -103,12 +162,15 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let model_front_face_pos = (best + center_offset);
 
     // Convert the local space position into voxel space, ie. [-1, 1] -> [0, 32]
-    let voxel_position = model_front_face_pos * voxel_volume.size;
+    let voxel_position = model_front_face_pos * voxel_volume.size / world_size;
+
+    // return vec4<f32>(floor(voxel_position) / voxel_volume.size, 1.0);
 
     let ray_dir = model_ray_dir;
     let ray_dir_len = length(ray_dir);
     let ray_position = voxel_position + 0.0001 * ray_dir;
     var map_pos = floor(ray_position);
+
     let delta_dist = abs(vec3<f32>(ray_dir_len, ray_dir_len, ray_dir_len) / ray_dir);
 	let ray_step = vec3<f32>(sign(ray_dir));
 	var side_dist = (sign(ray_dir) * (map_pos - ray_position) + (sign(ray_dir) * 0.5) + 0.5) * delta_dist; 
@@ -147,6 +209,6 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 		color = color * vec4<f32>(vec3<f32>(0.75), 1.0);
 	}
     
-    // return vec4<f32>(1.0, 0.0, 1.0, 1.0);
+    // // return vec4<f32>(1.0, 0.0, 1.0, 1.0);
     return color;
 }

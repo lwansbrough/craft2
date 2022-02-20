@@ -4,9 +4,11 @@ use serde::Serialize;
 /// https://developer.nvidia.com/gpugems/gpugems2/part-v-image-oriented-computing/chapter-37-octree-textures-gpu
 #[derive(Clone, Debug, Serialize)]
 pub struct Octree {
+    #[serde(skip)]
     grids_max: [u8; 3],
     #[serde(skip)]
     grids_next_free: [u8; 3],
+    #[serde(skip)]
     depth_max: u8,
     indirection_pool: Vec<IndirectionGrid>,
     // released_grids: VecDeque<?>
@@ -20,7 +22,7 @@ impl Octree {
         Octree {
             grids_max,
             indirection_pool: pool,
-            grids_next_free: [0; 3],
+            grids_next_free: [1, 0, 0],
             depth_max
         }
     }
@@ -28,13 +30,34 @@ impl Octree {
     pub fn add_data(&mut self, mut x: u8, mut y: u8, mut z: u8, data: [u8; 3]) {
         let mut pool_index = 0;
 
+        // let mut depth = 0;
+        // while depth < self.depth_max {
+        //     let grid = &self.indirection_pool[pool_index];
+        //     let grid_cell_size = (2u16.pow(u32::from(self.depth_max - grid.depth)) / 2 - 1) as u8;
+
+        //     let grid_x = x / grid_cell_size;
+        //     let grid_y = y / grid_cell_size;
+        //     let grid_z = z / grid_cell_size;
+
+        //     x = x - grid_x * grid_cell_size;
+        //     y = y - grid_y * grid_cell_size;
+        //     z = z - grid_z * grid_cell_size;
+
+        //     let cell_index = usize::from(grid_x + grid_y * 2 + grid_z * 2 * 2);
+        //     let mut cell = grid.cells[cell_index];
+
+        //     println!("({:?}, {:?}, {:?}) {:?}", x, y, z, cell_index);
+
+        //     depth += 1;
+        // }
+
         let mut depth = 0;
         while depth < self.depth_max {
             let grid = &self.indirection_pool[pool_index];
-            let grid_cell_size = (2u16.pow(u32::from(self.depth_max - grid.depth)) / 2 - 1) as u8;
-            let grid_x = x / grid_cell_size;
-            let grid_y = y / grid_cell_size;
-            let grid_z = z / grid_cell_size;
+            let grid_cell_size = 2u16.pow(u32::from(self.depth_max - grid.depth)) / 2;
+            let grid_x = (x as u16 / grid_cell_size) as u8;
+            let grid_y = (y as u16 / grid_cell_size) as u8;
+            let grid_z = (z as u16 / grid_cell_size) as u8;
 
             let cell_index = usize::from(grid_x + grid_y * 2 + grid_z * 2 * 2);
             let mut cell = grid.cells[cell_index];
@@ -43,24 +66,23 @@ impl Octree {
 
             match cell.cell_type {
                 GridCellType::Empty => {
-                    if x == 0 && y == 0 && z == 0 {
-                        cell.cell_type = GridCellType::Data;
+                    if depth == self.depth_max - 1 {
+                        cell.cell_type = GridCellType::Material;
                         cell.data = data;
                         self.update_grid_cell(pool_index, cell_index, cell);
                         return;
                     } else {
                         let (_, offsets) = self.create_grid_child(pool_index, grid_x, grid_y, grid_z);
-                        pool_index = usize::from(u16::from(offsets[0]) + (u16::from(offsets[1]) * 256u16) + (u16::from(offsets[2]) * 256 * 256));
-                        continue;
+                        pool_offsets = offsets;
                     }
                 },
-                GridCellType::Index => {
+                GridCellType::GridPointer => {
                     pool_offsets = cell.data;
-                    x -= grid_x * grid_cell_size;
-                    y -= grid_y * grid_cell_size;
-                    z -= grid_z * grid_cell_size;
+                    x -= (grid_x as u16 * grid_cell_size) as u8;
+                    y -= (grid_y as u16 * grid_cell_size) as u8;
+                    z -= (grid_z as u16 * grid_cell_size) as u8;
                 },
-                GridCellType::Data => {
+                GridCellType::Material => {
                     cell.data = data;
                     self.update_grid_cell(pool_index, cell_index, cell);
                     return;
@@ -114,6 +136,7 @@ impl Octree {
 
         if self.grids_next_free[2] < self.grids_max[2] {
             let next_free = self.grids_next_free.clone();
+            self.indirection_pool.reserve(1);
 
             if self.grids_next_free[0] < self.grids_max[0] - 1 {
                 self.grids_next_free[0] += 1;
@@ -130,7 +153,7 @@ impl Octree {
 
             let child_grid = IndirectionGrid::new(depth, grid_coord, next_free);
             let pool_index = usize::from(u16::from(next_free[0]) + (u16::from(next_free[1]) * 256u16) + (u16::from(next_free[2]) * 256 * 256));
-            self.indirection_pool[pool_index] = child_grid;
+            self.indirection_pool.insert(pool_index, child_grid);
 
             child_index = pool_index;
         }
@@ -147,7 +170,7 @@ impl Octree {
         let mut grid_cells = grid.cells;
 
         grid_cells[usize::from(grid_x + grid_y * 2 + grid_z * 2 * 2)] = GridCell::new(
-            GridCellType::Index,
+            GridCellType::GridPointer,
             offset
         );
 
@@ -171,6 +194,23 @@ impl Octree {
     pub fn set_grid(&mut self, offset: [u8; 3], grid: IndirectionGrid) {
         let index =  usize::from(u16::from(offset[0]) + (u16::from(offset[1]) * 256u16) + (u16::from(offset[2]) * 256 * 256));
         self.indirection_pool[index] = grid;
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = vec![];
+        for grid in &self.indirection_pool {
+            for cell in &grid.cells {
+                unsafe {
+                    let cell_bytes = ::std::slice::from_raw_parts(
+                        (cell as *const GridCell) as *const u8,
+                        ::std::mem::size_of::<GridCell>(),
+                    );
+                    bytes.extend_from_slice(cell_bytes);
+                }
+            }
+        }
+
+        bytes
     }
 }
 
@@ -226,6 +266,7 @@ impl IndirectionGrid {
 }
 
 #[derive(Copy, Clone, Debug, Serialize)]
+#[repr(C)]
 pub struct GridCell {
     cell_type: GridCellType,
     data: [u8; 3]
@@ -253,6 +294,7 @@ impl GridCell {
 #[repr(u8)]
 pub enum GridCellType {
     Empty,
-    Index,
-    Data
+    GridPointer,
+    Material,
+    Attachment, // A child octree pointer + connection orientation (1 of 24 -- 6 faces * 4 orientations per face)
 }

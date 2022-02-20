@@ -39,7 +39,7 @@ impl Plugin for VoxelVolumePlugin {
 
         app.add_plugin(UniformComponentPlugin::<VoxelVolumeUniform>::default());
 
-        let render_app = app.sub_app(RenderApp);
+        let render_app = app.sub_app_mut(RenderApp);
         render_app
             // .add_render_command::<Opaque3d, DrawVoxels>()
             // .add_render_command::<AlphaMask3d, DrawVoxels>()

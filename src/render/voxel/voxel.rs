@@ -1,5 +1,4 @@
-use bevy::{render::{render_phase::{SetItemPipeline, EntityRenderCommand, TrackedRenderPass, RenderCommandResult, DrawFunctions, RenderPhase}, render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, SpecializedPipeline, RenderPipelineDescriptor, Shader, RenderPipelineCache, SpecializedPipelines, IndexFormat, PrimitiveTopology, PolygonMode, PrimitiveState, FrontFace, VertexState, VertexBufferLayout, ColorTargetState, TextureFormat, ColorWrites, DepthStencilState, CompareFunction, StencilState, StencilFaceState, DepthBiasState, FragmentState, VertexStepMode, MultisampleState, VertexAttribute, VertexFormat, BlendState, Face, BindGroup, BindGroupEntry, BindGroupDescriptor, BufferSize}, renderer::RenderDevice, render_asset::RenderAssets, view::{Msaa, ExtractedView, VisibleEntities, ViewUniform, ViewUniforms, ViewUniformOffset}, mesh::Mesh, texture::BevyDefault, render_component::{ComponentUniforms, DynamicUniformIndex}}, prelude::{FromWorld, World, Handle, Entity, Res, ResMut, Query, With, GlobalTransform, ComputedVisibility, Local, Commands, Component}, ecs::system::{lifetimeless::{SRes, SQuery, Read}, SystemParamItem}, core_pipeline::Transparent3d};
-use crevice::std140::AsStd140;
+use bevy::{render::{render_phase::{SetItemPipeline, EntityRenderCommand, TrackedRenderPass, RenderCommandResult, DrawFunctions, RenderPhase}, render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, SpecializedPipeline, RenderPipelineDescriptor, Shader, RenderPipelineCache, SpecializedPipelines, IndexFormat, PrimitiveTopology, PolygonMode, PrimitiveState, FrontFace, VertexState, VertexBufferLayout, ColorTargetState, TextureFormat, ColorWrites, DepthStencilState, CompareFunction, StencilState, StencilFaceState, DepthBiasState, FragmentState, VertexStepMode, MultisampleState, VertexAttribute, VertexFormat, BlendState, Face, BindGroup, BindGroupEntry, BindGroupDescriptor, BufferSize, std140::AsStd140}, renderer::RenderDevice, render_asset::RenderAssets, view::{Msaa, ExtractedView, VisibleEntities, ViewUniform, ViewUniforms, ViewUniformOffset}, mesh::Mesh, texture::BevyDefault, render_component::{ComponentUniforms, DynamicUniformIndex}}, prelude::{FromWorld, World, Handle, Entity, Res, ResMut, Query, With, GlobalTransform, ComputedVisibility, Local, Commands, Component}, ecs::system::{lifetimeless::{SRes, SQuery, Read}, SystemParamItem}, core_pipeline::Transparent3d, math::Mat4};
 
 use crate::{VOXEL_SHADER_HANDLE, VoxelVolume, VoxelVolumeUniform, GpuBufferInfo};
 
@@ -131,10 +130,10 @@ impl SpecializedPipeline for VoxelPipeline {
                 front_face: FrontFace::Ccw,
                 cull_mode: Some(Face::Front),
                 polygon_mode: PolygonMode::Fill,
-                clamp_depth: false,
                 conservative: false,
                 topology: PrimitiveTopology::TriangleList,
                 strip_index_format: None,
+                unclipped_depth: false
             },
             depth_stencil: Some(DepthStencilState {
                 format: TextureFormat::Depth32Float,
@@ -342,6 +341,7 @@ pub fn extract_voxel_volumes(
         &GlobalTransform,
         &Handle<VoxelVolume>,
     )>,
+    views: Query<&ExtractedView>,
 ) {
     let mut uniforms = Vec::with_capacity(*previous_uniforms_len);
     for (entity, computed_visibility, transform, handle) in voxel_volumes.iter() {
@@ -356,6 +356,7 @@ pub fn extract_voxel_volumes(
                 handle.clone_weak(),
                 VoxelVolumeUniform {
                     transform,
+                    inverse_transform: transform.inverse(),
                     inverse_transpose_model: transform.inverse().transpose()
                 }
             )
