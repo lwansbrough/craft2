@@ -1,6 +1,8 @@
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 use serde::Serialize;
 
+use crate::{u24_to_bytes, bytes_to_u24};
+
 /// https://developer.nvidia.com/gpugems/gpugems2/part-v-image-oriented-computing/chapter-37-octree-textures-gpu
 #[derive(Clone, Debug, Serialize)]
 pub struct Octree {
@@ -22,13 +24,13 @@ impl Octree {
         Octree {
             grids_max,
             indirection_pool: pool,
-            grids_next_free: [1, 0, 0],
+            grids_next_free: [0, 0, 0],
             depth_max
         }
     }
 
     pub fn add_data(&mut self, mut x: u8, mut y: u8, mut z: u8, data: [u8; 3]) {
-        let mut pool_index = 0;
+        let mut pool_index = 0u32;
 
         // let mut depth = 0;
         // while depth < self.depth_max {
@@ -43,7 +45,7 @@ impl Octree {
         //     y = y - grid_y * grid_cell_size;
         //     z = z - grid_z * grid_cell_size;
 
-        //     let cell_index = usize::from(grid_x + grid_y * 2 + grid_z * 2 * 2);
+        //     let cell_index = u32::from(grid_x + grid_y * 2 + grid_z * 2 * 2);
         //     let mut cell = grid.cells[cell_index];
 
         //     println!("({:?}, {:?}, {:?}) {:?}", x, y, z, cell_index);
@@ -53,17 +55,15 @@ impl Octree {
 
         let mut depth = 0;
         while depth < self.depth_max {
-            let grid = &self.indirection_pool[pool_index];
+            let grid = &self.indirection_pool[pool_index as usize];
             let grid_cell_size = 2u16.pow(u32::from(self.depth_max - grid.depth)) / 2;
             let grid_x = (x as u16 / grid_cell_size) as u8;
             let grid_y = (y as u16 / grid_cell_size) as u8;
             let grid_z = (z as u16 / grid_cell_size) as u8;
 
-            let cell_index = usize::from(grid_x + grid_y * 2 + grid_z * 2 * 2);
-            let mut cell = grid.cells[cell_index];
+            let cell_index = u32::from(grid_x + grid_y * 2 + grid_z * 2 * 2);
+            let mut cell = grid.cells[cell_index as usize];
             
-            let mut pool_offsets: [u8; 3] = [0; 3];
-
             match cell.cell_type {
                 GridCellType::Empty => {
                     if depth == self.depth_max - 1 {
@@ -72,12 +72,12 @@ impl Octree {
                         self.update_grid_cell(pool_index, cell_index, cell);
                         return;
                     } else {
-                        let (_, offsets) = self.create_grid_child(pool_index, grid_x, grid_y, grid_z);
-                        pool_offsets = offsets;
+                        let child_pool_index = self.create_grid_child(pool_index, grid_x, grid_y, grid_z);
+                        pool_index = child_pool_index;
                     }
                 },
                 GridCellType::GridPointer => {
-                    pool_offsets = cell.data;
+                    pool_index = bytes_to_u24(cell.data);
                     x -= (grid_x as u16 * grid_cell_size) as u8;
                     y -= (grid_y as u16 * grid_cell_size) as u8;
                     z -= (grid_z as u16 * grid_cell_size) as u8;
@@ -90,7 +90,7 @@ impl Octree {
                 _ => {}
             }
             
-            pool_index = usize::from(u16::from(pool_offsets[0]) + (u16::from(pool_offsets[1]) * 256u16) + (u16::from(pool_offsets[2]) * 256 * 256));
+            // pool_index = u32::from(u16::from(pool_offsets[0]) + (u16::from(pool_offsets[1]) * 256u16) + (u16::from(pool_offsets[2]) * 256 * 256));
             depth += 1;
         }
     }
@@ -116,8 +116,8 @@ impl Octree {
         [di as u8 & 255, dj as u8 & 255, dk as u8 & 255]
     }
 
-    fn create_grid_child(&mut self, pool_index: usize, grid_x: u8, grid_y: u8, grid_z: u8) -> (usize, [u8; 3]) {
-        let grid = &self.indirection_pool[pool_index].clone();
+    fn create_grid_child(&mut self, pool_index: u32, grid_x: u8, grid_y: u8, grid_z: u8) -> u32 {
+        let grid = &self.indirection_pool[pool_index as usize].clone();
         let grid_size_next = 2u8.pow(grid.depth as u32 + 1);
         let grid_coord = grid.grid_coord();
         let grid_pos = [
@@ -135,7 +135,6 @@ impl Octree {
         }
 
         if self.grids_next_free[2] < self.grids_max[2] {
-            let next_free = self.grids_next_free.clone();
             self.indirection_pool.reserve(1);
 
             if self.grids_next_free[0] < self.grids_max[0] - 1 {
@@ -151,9 +150,10 @@ impl Octree {
                 }
             }
 
+            let next_free = self.grids_next_free.clone();
             let child_grid = IndirectionGrid::new(depth, grid_coord, next_free);
-            let pool_index = usize::from(u16::from(next_free[0]) + (u16::from(next_free[1]) * 256u16) + (u16::from(next_free[2]) * 256 * 256));
-            self.indirection_pool.insert(pool_index, child_grid);
+            let pool_index = u32::from(u16::from(next_free[0]) + (u16::from(next_free[1]) * 256u16) + (u16::from(next_free[2]) * 256 * 256));
+            self.indirection_pool.insert(pool_index as usize, child_grid);
 
             child_index = pool_index;
         }
@@ -164,36 +164,35 @@ impl Octree {
 
         // }
 
-        let child = &self.indirection_pool[child_index];
-        let offset = self.compute_offset(child.pool_coord(), grid_pos, grid_size_next);
+        let child = &self.indirection_pool[child_index as usize];
+        // let offset = self.compute_offset(child.pool_coord(), grid_pos, grid_size_next);
 
         let mut grid_cells = grid.cells;
 
         grid_cells[usize::from(grid_x + grid_y * 2 + grid_z * 2 * 2)] = GridCell::new(
             GridCellType::GridPointer,
-            offset
+            u24_to_bytes(child_index)
         );
 
-        self.indirection_pool[pool_index] = IndirectionGrid
-        {
+        self.indirection_pool[pool_index as usize] = IndirectionGrid {
             depth: grid.depth,
             grid_coord: grid.grid_coord,
             pool_coord: grid.pool_coord,
             cells: grid_cells
         };
 
-        (child_index, offset)
+        child_index
         // TODO: set update
     }
 
-    fn update_grid_cell(&mut self, pool_index: usize, cell_index: usize, cell: GridCell) {
-        let grid = &mut self.indirection_pool[pool_index];
-        grid.cells[cell_index] = cell;
+    fn update_grid_cell(&mut self, pool_index: u32, cell_index: u32, cell: GridCell) {
+        let grid = &mut self.indirection_pool[pool_index as usize];
+        grid.cells[cell_index as usize] = cell;
     }
 
     pub fn set_grid(&mut self, offset: [u8; 3], grid: IndirectionGrid) {
-        let index =  usize::from(u16::from(offset[0]) + (u16::from(offset[1]) * 256u16) + (u16::from(offset[2]) * 256 * 256));
-        self.indirection_pool[index] = grid;
+        let index =  u32::from(u16::from(offset[0]) + (u16::from(offset[1]) * 256u16) + (u16::from(offset[2]) * 256 * 256));
+        self.indirection_pool[index as usize] = grid;
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -213,7 +212,6 @@ impl Octree {
         bytes
     }
 }
-
 
 #[derive(Clone, Debug, Serialize)]
 pub struct IndirectionGrid {

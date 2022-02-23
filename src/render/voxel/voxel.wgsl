@@ -25,8 +25,8 @@ struct IndirectionGrid {
 };
 
 struct VoxelVolume {
-    [[align(16)]] resolution: vec3<f32>;
-    [[align(16)]] size: vec3<f32>;
+    [[size(16)]] resolution: vec3<f32>;
+    [[size(16)]] size: vec3<f32>;
     palette: array<u32, 256>;
     indirection_pool: array<IndirectionGrid>;
 };
@@ -54,10 +54,10 @@ var<uniform> voxel_volume_uniform: VoxelVolumeUniform;
 [[group(2), binding(0)]]
 var<storage, read> voxel_volume: VoxelVolume;
 
-let COLOR_RED_MASK = 0x000000FFu;
-let COLOR_GREEN_MASK = 0x0000FF00u;
-let COLOR_BLUE_MASK = 0x00FF0000u;
-let COLOR_ALPHA_MASK = 0xFF000000u;
+let COLOR_RED_MASK = 0xFF000000u;
+let COLOR_GREEN_MASK = 0x00FF0000u;
+let COLOR_BLUE_MASK = 0x0000FF00u;
+let COLOR_ALPHA_MASK = 0x000000FFu;
 
 let CELL_TYPE_MASK: u32 = 0x000000FFu;
 let CELL_DATA_MASK: u32 = 0xFFFFFF00u;
@@ -94,19 +94,22 @@ fn get_voxel(pos_in: vec3<f32>) -> vec4<f32> {
                 let palette_index = (cell & CELL_DATA_MASK) >> 8u;
                 let palette_color = voxel_volume.palette[palette_index];
 
-                return vec4<f32>(1.0, 0.0, 1.0, 1.0);
-                
-                // return vec4<f32>(
-                //     f32(palette_color & COLOR_ALPHA_MASK) / 255.0
-                //     f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0,
-                //     f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0,
-                //     f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0,
-                // );
+                let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
+                let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
+                let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
+                let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
+
+                return vec4<f32>(
+                    red,
+                    green,
+                    blue,
+                    alpha
+                );
             }
             default: {
                 // discard;
-                return vec4<f32>(f32(grid_coord_x) / f32(grid_cell_size), f32(grid_coord_y) / f32(grid_cell_size), f32(grid_coord_z) / f32(grid_cell_size), 1.0);
-                // return vec4<f32>(f32(pos.x) / voxel_volume.size.x, f32(pos.y) / voxel_volume.size.y, f32(pos.z) / voxel_volume.size.z, 1.0);
+                // return vec4<f32>(f32(grid_coord_x) / f32(grid_cell_size), f32(grid_coord_y) / f32(grid_cell_size), f32(grid_coord_z) / f32(grid_cell_size), 1.0);
+                return vec4<f32>(f32(pos.x) / voxel_volume.size.x, f32(pos.y) / voxel_volume.size.y, f32(pos.z) / voxel_volume.size.z, 1.0);
             }
         }
     }
@@ -168,7 +171,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     let ray_dir = model_ray_dir;
     let ray_dir_len = length(ray_dir);
-    let ray_position = voxel_position + 0.0001 * ray_dir;
+    let ray_position = voxel_position + 0.01 * ray_dir;
     var map_pos = floor(ray_position);
 
     let delta_dist = abs(vec3<f32>(ray_dir_len, ray_dir_len, ray_dir_len) / ray_dir);
