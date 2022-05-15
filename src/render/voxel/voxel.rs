@@ -1,4 +1,4 @@
-use bevy::{render::{render_phase::{SetItemPipeline, EntityRenderCommand, TrackedRenderPass, RenderCommandResult, DrawFunctions, RenderPhase}, render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, SpecializedPipeline, RenderPipelineDescriptor, Shader, RenderPipelineCache, SpecializedPipelines, IndexFormat, PrimitiveTopology, PolygonMode, PrimitiveState, FrontFace, VertexState, VertexBufferLayout, ColorTargetState, TextureFormat, ColorWrites, DepthStencilState, CompareFunction, StencilState, StencilFaceState, DepthBiasState, FragmentState, VertexStepMode, MultisampleState, VertexAttribute, VertexFormat, BlendState, Face, BindGroup, BindGroupEntry, BindGroupDescriptor, BufferSize, std140::AsStd140}, renderer::RenderDevice, render_asset::RenderAssets, view::{Msaa, ExtractedView, VisibleEntities, ViewUniform, ViewUniforms, ViewUniformOffset}, mesh::Mesh, texture::BevyDefault, render_component::{ComponentUniforms, DynamicUniformIndex}}, prelude::{FromWorld, World, Handle, Entity, Res, ResMut, Query, With, GlobalTransform, ComputedVisibility, Local, Commands, Component}, ecs::system::{lifetimeless::{SRes, SQuery, Read}, SystemParamItem}, core_pipeline::Transparent3d, math::Mat4};
+use bevy::{render::{render_phase::{SetItemPipeline, EntityRenderCommand, TrackedRenderPass, RenderCommandResult, DrawFunctions, RenderPhase}, render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, SpecializedRenderPipeline, RenderPipelineDescriptor, Shader, PipelineCache, SpecializedRenderPipelines, IndexFormat, PrimitiveTopology, PolygonMode, PrimitiveState, FrontFace, VertexState, VertexBufferLayout, ColorTargetState, TextureFormat, ColorWrites, DepthStencilState, CompareFunction, StencilState, StencilFaceState, DepthBiasState, FragmentState, VertexStepMode, MultisampleState, VertexAttribute, VertexFormat, BlendState, Face, BindGroup, BindGroupEntry, BindGroupDescriptor, BufferSize, std140::AsStd140}, renderer::RenderDevice, render_asset::RenderAssets, view::{Msaa, ExtractedView, VisibleEntities, ViewUniform, ViewUniforms, ViewUniformOffset}, mesh::Mesh, texture::BevyDefault, render_component::{ComponentUniforms, DynamicUniformIndex}}, prelude::{FromWorld, World, Handle, Entity, Res, ResMut, Query, With, GlobalTransform, ComputedVisibility, Local, Commands, Component}, ecs::system::{lifetimeless::{SRes, SQuery, Read}, SystemParamItem}, core_pipeline::Transparent3d, math::Mat4};
 
 use crate::{VOXEL_SHADER_HANDLE, VoxelVolume, VoxelVolumeUniform, GpuBufferInfo};
 
@@ -75,7 +75,7 @@ impl FromWorld for VoxelPipeline {
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct VoxelPipelineKey;
 
-impl SpecializedPipeline for VoxelPipeline {
+impl SpecializedRenderPipeline for VoxelPipeline {
     type Key = VoxelPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
@@ -242,7 +242,7 @@ impl<const I: usize> EntityRenderCommand for SetVoxelVolumeViewBindGroup<I> {
         view_query: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let (view_uniform, voxel_volume_view_bind_group) = view_query.get(view).unwrap();
+        let (view_uniform, voxel_volume_view_bind_group) = view_query.get_inner(view).unwrap();
         pass.set_bind_group(
             I,
             &voxel_volume_view_bind_group.value,
@@ -370,8 +370,8 @@ pub fn queue_voxel_volumes(
     transparent_draw_functions: Res<DrawFunctions<Transparent3d>>,
     render_voxel_volumes: Res<RenderAssets<VoxelVolume>>,
     voxel_pipeline: Res<VoxelPipeline>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,
-    mut pipelines: ResMut<SpecializedPipelines<VoxelPipeline>>,
+    mut pipeline_cache: ResMut<PipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<VoxelPipeline>>,
     msaa: Res<Msaa>,
     voxel_volumes: Query<(Entity, &Handle<VoxelVolume>, &VoxelVolumeUniform), With<Handle<VoxelVolume>>>,
     mut views: Query<(

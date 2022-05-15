@@ -17,7 +17,7 @@ use bevy::{
     DefaultPlugins,
 };
 use craft2::{VoxelVolumePlugin, VoxelVolume, VoxelBundle, color_to_rgba_u32, u24_to_bytes};
-use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
+// use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 
 fn main() {
     App::new()
@@ -25,7 +25,7 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(VoxelVolumePlugin)
-        .add_plugin(FlyCameraPlugin)
+        // .add_plugin(FlyCameraPlugin)
         .add_startup_system(setup)
         .add_system(movement)
         .add_system(animate_light_direction)
@@ -42,7 +42,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut voxel_volumes: ResMut<Assets<VoxelVolume>>,
 ) {
-    let mut test = VoxelVolume::new([256, 256, 256]);
+    let mut test = VoxelVolume::new([32, 32, 32]);
     test.palette[0] = color_to_rgba_u32(Color::ORANGE_RED);
     test.data.add_data(0, 0, 0, u24_to_bytes(0));
     test.data.add_data(1, 0, 0, u24_to_bytes(0));
@@ -54,8 +54,8 @@ fn setup(
     // });
     // voxel volume
 
-    for x in 0..128 {
-        for z in 0..128 {
+    for x in 0..16 {
+        for z in 0..16 {
             commands.spawn_bundle(VoxelBundle {
                 transform: Transform::from_xyz((x * 16) as f32, 1.0, (z * 16) as f32),
                 volume: test_handle.clone(),
@@ -262,10 +262,11 @@ fn setup(
 
     // camera
     commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(-5.0, 200.0, -5.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+        transform: Transform::from_xyz(-5.0, 20.0, -5.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
         // transform: Transform::from_xyz(0.0, 1.0, -10.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
         ..Default::default()
-    }).insert(FlyCamera::default());
+    });
+    //.insert(FlyCamera::default());
 }
 
 fn animate_light_direction(
