@@ -78,9 +78,6 @@ impl Octree {
                 },
                 GridCellType::GridPointer => {
                     pool_index = bytes_to_u24(cell.data);
-                    x -= (grid_x as u16 * grid_cell_size) as u8;
-                    y -= (grid_y as u16 * grid_cell_size) as u8;
-                    z -= (grid_z as u16 * grid_cell_size) as u8;
                 },
                 GridCellType::Material => {
                     cell.data = data;
@@ -91,6 +88,9 @@ impl Octree {
             }
             
             // pool_index = u32::from(u16::from(pool_offsets[0]) + (u16::from(pool_offsets[1]) * 256u16) + (u16::from(pool_offsets[2]) * 256 * 256));
+            x -= (grid_x as u16 * grid_cell_size) as u8;
+            y -= (grid_y as u16 * grid_cell_size) as u8;
+            z -= (grid_z as u16 * grid_cell_size) as u8;
             depth += 1;
         }
     }

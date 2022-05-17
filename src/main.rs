@@ -17,7 +17,7 @@ use bevy::{
     DefaultPlugins,
 };
 use craft2::{VoxelVolumePlugin, VoxelVolume, VoxelBundle, color_to_rgba_u32, u24_to_bytes};
-// use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
+use bevy_flycam::{PlayerPlugin, FlyCam};
 
 fn main() {
     App::new()
@@ -25,10 +25,8 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(VoxelVolumePlugin)
-        // .add_plugin(FlyCameraPlugin)
+        .add_plugin(PlayerPlugin)
         .add_startup_system(setup)
-        .add_system(movement)
-        .add_system(animate_light_direction)
         .run();
 }
 
@@ -46,23 +44,24 @@ fn setup(
     test.palette[0] = color_to_rgba_u32(Color::ORANGE_RED);
     test.data.add_data(0, 0, 0, u24_to_bytes(0));
     test.data.add_data(1, 0, 0, u24_to_bytes(0));
+    test.data.add_data(31, 0, 0, u24_to_bytes(0));
     let test_handle = voxel_volumes.add(test);
-    // commands.spawn_bundle(VoxelBundle {
-    //     transform: Transform::from_xyz(0.0, 1.0, 0.0),
-    //     volume: test_handle.clone(),
-    //     ..Default::default()
-    // });
+    commands.spawn_bundle(VoxelBundle {
+        transform: Transform::from_xyz(0.0, 2.0, 0.0),
+        volume: test_handle.clone(),
+        ..Default::default()
+    });
     // voxel volume
 
-    for x in 0..16 {
-        for z in 0..16 {
-            commands.spawn_bundle(VoxelBundle {
-                transform: Transform::from_xyz((x * 16) as f32, 1.0, (z * 16) as f32),
-                volume: test_handle.clone(),
-                ..Default::default()
-            });
-        }
-    }
+    // for x in 0..16 {
+    //     for z in 0..16 {
+    //         commands.spawn_bundle(VoxelBundle {
+    //             transform: Transform::from_xyz((x * 16) as f32, 1.0, (z * 16) as f32),
+    //             volume: test_handle.clone(),
+    //             ..Default::default()
+    //         });
+    //     }
+    // }
     
     
 
@@ -87,6 +86,17 @@ fn setup(
             ..Default::default()
         }),
         transform: Transform::from_xyz(0.0, 0.0, 0.0),
+        ..Default::default()
+    });
+
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Box::new(0.25, 0.25, 0.25))),
+        transform: Transform::from_xyz(1.125, 3.125, 1.125),
+        material: materials.add(StandardMaterial {
+            base_color: Color::INDIGO,
+            perceptual_roughness: 1.0,
+            ..Default::default()
+        }),
         ..Default::default()
     });
 
@@ -262,42 +272,9 @@ fn setup(
 
     // camera
     commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(-5.0, 20.0, -5.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+        transform: Transform::from_xyz(5.0, 20.0, 5.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
         // transform: Transform::from_xyz(0.0, 1.0, -10.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
         ..Default::default()
-    });
-    //.insert(FlyCamera::default());
-}
-
-fn animate_light_direction(
-    time: Res<Time>,
-    mut query: Query<&mut Transform, With<DirectionalLight>>,
-) {
-    for mut transform in query.iter_mut() {
-        transform.rotate(Quat::from_rotation_y(time.delta_seconds() * 0.5));
-    }
-}
-
-fn movement(
-    input: Res<Input<KeyCode>>,
-    time: Res<Time>,
-    mut query: Query<&mut Transform, With<Movable>>,
-) {
-    for mut transform in query.iter_mut() {
-        let mut direction = Vec3::ZERO;
-        if input.pressed(KeyCode::Up) {
-            direction.y += 1.0;
-        }
-        if input.pressed(KeyCode::Down) {
-            direction.y -= 1.0;
-        }
-        if input.pressed(KeyCode::Left) {
-            direction.x -= 1.0;
-        }
-        if input.pressed(KeyCode::Right) {
-            direction.x += 1.0;
-        }
-
-        transform.translation += time.delta_seconds() * 2.0 * direction;
-    }
+    })
+    .insert(FlyCam);
 }

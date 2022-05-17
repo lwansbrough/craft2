@@ -32,8 +32,8 @@ struct VoxelVolume {
 };
 
 struct Vertex {
-    [[location(0)]] position: vec3<f32>;
-    [[location(1)]] normal: vec3<f32>;
+    [[location(1)]] position: vec3<f32>;
+    [[location(0)]] normal: vec3<f32>;
     [[location(2)]] uv: vec2<f32>;
 };
 
@@ -66,64 +66,64 @@ let CELL_TYPE_GRID_POINTER = 1u;
 let CELL_TYPE_DATA = 2u;
 let CELL_TYPE_EMPTY = 0u;
 
-fn get_voxel(pos_in: vec3<f32>) -> vec4<f32> {
-    let color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-    var pos = vec3<u32>(pos_in);
+// fn get_voxel(pos_in: vec3<f32>) -> vec4<f32> {
+//     let color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+//     var pos = vec3<u32>(pos_in);
     
-    var pool_index = 0u;
-    var grid_size = u32(max(max(voxel_volume.size.x, voxel_volume.size.y), voxel_volume.size.z));
-    var grid_cell_size = grid_size / 2u;
-    let max_depth: i32 = i32(log2(f32(grid_size)));
+//     var pool_index = 0u;
+//     var grid_size = u32(max(max(voxel_volume.size.x, voxel_volume.size.y), voxel_volume.size.z));
+//     var grid_cell_size = grid_size / 2u;
+//     let max_depth: i32 = i32(log2(f32(grid_size)));
     
-    for (var i: i32 = 0; i < max_depth; i = i + 1) {
-        let grid = &voxel_volume.indirection_pool[pool_index];
-        let grid_coord_x = u32(pos.x / grid_cell_size);
-        let grid_coord_y = u32(pos.y / grid_cell_size);
-        let grid_coord_z = u32(pos.z / grid_cell_size);
-        let grid_index = grid_coord_x + grid_coord_y * 2u + grid_coord_z * 2u * 2u;
-        let cell = (*grid).cells[grid_index].data;
-        let cell_type = (cell & CELL_TYPE_MASK);
+//     for (var i: i32 = 0; i < max_depth; i = i + 1) {
+//         let grid = &voxel_volume.indirection_pool[pool_index];
+//         let grid_coord_x = u32(pos.x / grid_cell_size);
+//         let grid_coord_y = u32(pos.y / grid_cell_size);
+//         let grid_coord_z = u32(pos.z / grid_cell_size);
+//         let grid_index = grid_coord_x + grid_coord_y * 2u + grid_coord_z * 2u * 2u;
+//         let cell = (*grid).cells[grid_index].data;
+//         let cell_type = (cell & CELL_TYPE_MASK);
 
-        switch (cell_type) {
-            case 1u: {
-            // case CELL_TYPE_GRID_POINTER: {
-                pool_index = (cell & CELL_DATA_MASK) >> 8u;
-                grid_cell_size = grid_cell_size / 2u;
-                pos = vec3<u32>(
-                    pos.x - grid_coord_x * grid_cell_size,
-                    pos.y - grid_coord_y * grid_cell_size,
-                    pos.z - grid_coord_z * grid_cell_size
-                );
-            }
-            case 2u: {
-            // case CELL_TYPE_DATA: {
-                let palette_index = (cell & CELL_DATA_MASK) >> 8u;
-                let palette_color = voxel_volume.palette[palette_index];
+//         switch (cell_type) {
+//             case 1u: {
+//             // case CELL_TYPE_GRID_POINTER: {
+//                 pool_index = (cell & CELL_DATA_MASK) >> 8u;
+//                 grid_cell_size = grid_cell_size / 2u;
+//                 pos = vec3<u32>(
+//                     pos.x - grid_coord_x * grid_cell_size,
+//                     pos.y - grid_coord_y * grid_cell_size,
+//                     pos.z - grid_coord_z * grid_cell_size
+//                 );
+//             }
+//             case 2u: {
+//             // case CELL_TYPE_DATA: {
+//                 let palette_index = (cell & CELL_DATA_MASK) >> 8u;
+//                 let palette_color = voxel_volume.palette[palette_index];
 
-                let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
-                let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
-                let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
-                let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
+//                 let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
+//                 let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
+//                 let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
+//                 let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
 
-                return vec4<f32>(
-                    red,
-                    green,
-                    blue,
-                    alpha
-                );
-            }
-            default: {
-                // discard;
-                // return vec4<f32>(f32(grid_coord_x) / f32(grid_cell_size), f32(grid_coord_y) / f32(grid_cell_size), f32(grid_coord_z) / f32(grid_cell_size), 1.0);
-                return vec4<f32>(f32(pos.x) / voxel_volume.size.x, f32(pos.y) / voxel_volume.size.y, f32(pos.z) / voxel_volume.size.z, 1.0);
-            }
-        }
-    }
+//                 return vec4<f32>(
+//                     red,
+//                     green,
+//                     blue,
+//                     alpha
+//                 );
+//             }
+//             default: {
+//                 // discard;
+//                 // return vec4<f32>(f32(grid_coord_x) / f32(grid_cell_size), f32(grid_coord_y) / f32(grid_cell_size), f32(grid_coord_z) / f32(grid_cell_size), 1.0);
+//                 return vec4<f32>(f32(pos.x) / voxel_volume.size.x, f32(pos.y) / voxel_volume.size.y, f32(pos.z) / voxel_volume.size.z, 1.0);
+//             }
+//         }
+//     }
 
-    // return vec4<f32>(0.0, 0.0, 1.0, 1.0);
+//     // return vec4<f32>(0.0, 0.0, 1.0, 1.0);
 
-    discard;
-}
+//     discard;
+// }
 
 // struct Stack {
 //     index: u32;
@@ -131,17 +131,17 @@ fn get_voxel(pos_in: vec3<f32>) -> vec4<f32> {
 //     scale: f32;
 // }
 
-// fn raybox_intersect(box_min: vec3<f32>, box_max: vec3<f32>, ray_dir: vec3<f32>, ray_origin: vec3<f32>) -> bool {
-// 	let tbot = ray_dir * (box_min - ray_origin);
-// 	let ttop = r.invDir * (box_max - ray_origin);
-// 	let tmin = min(ttop, tbot);
-// 	let tmax = max(ttop, tbot);
-// 	var t = max(tmin.xx, tmin.yz);
-// 	let t0 = max(t.x, t.y);
-// 	t = min(tmax.xx, tmax.yz);
-// 	let t1 = min(t.x, t.y);
-//     return t1 > max(t0, 0.0);
-// }
+fn raybox_intersect(box_min: vec3<f32>, box_max: vec3<f32>, ray_dir: vec3<f32>, ray_inv_dir: vec3<f32>, ray_origin: vec3<f32>) -> bool {
+	let tbot = ray_inv_dir * (box_min - ray_origin);
+	let ttop = ray_inv_dir * (box_max - ray_origin);
+	let tmin = min(ttop, tbot);
+	let tmax = max(ttop, tbot);
+	var t = max(tmin.xx, tmin.yz);
+	let t0 = max(t.x, t.y);
+	t = min(tmax.xx, tmax.yz);
+	let t1 = min(t.x, t.y);
+    return t1 > max(t0, 0.0);
+}
 
 // fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>) -> vec4<f32> {
 //     let center = vec3<f32>(0.0, 0.0, 0.0);
@@ -220,38 +220,21 @@ struct Stack {
 };
 
 fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, world_size: vec3<f32>) -> vec4<f32> {
-    let ray_dir_len = length(ray_dir);
-    // Convert the local space position into voxel space, ie. [-1, 1] -> [0, 32]
-    let voxel_position = ray_position * voxel_volume.size / world_size;
-    var map_pos = floor(voxel_position);
+    let ray_dir_inv = 1.0 / ray_dir;
 
-    let delta_dist = abs(vec3<f32>(ray_dir_len, ray_dir_len, ray_dir_len) / ray_dir);
-    let ray_step = vec3<f32>(sign(ray_dir));
-    var side_dist = (sign(ray_dir) * (map_pos - ray_position) + (sign(ray_dir) * 0.5) + 0.5) * delta_dist; 
-    
-    var mask: vec3<bool>;
-    var color: vec4<f32> = vec4<f32>(1.0, 0.0, 1.0, 1.0);
+    var center = vec3<f32>(0.0, 0.0, 0.0);
+    var scale: f32 = 0.5;
 
-    for (var i: i32 = 0; i < 512; i = i + 1) {
-        if (any(map_pos >= voxel_volume.size)) {
-            color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-            break;
-        }
-        if (any(map_pos < vec3<f32>(0.0))) {
-            color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-            break;
-        }
-
-        color = get_voxel(map_pos);
-        
-        if (color.a != 0.0) {
-            break;
-        }
-
-        mask = side_dist.xyz <= min(side_dist.yzx, side_dist.zxy);
-        side_dist = side_dist + vec3<f32>(mask) * delta_dist;
-        map_pos = map_pos + vec3<f32>(mask) * ray_step;
-    }
+    var POS = array<vec3<f32>, 8>(
+        vec3<f32>(1.0, 1.0, 1.0),
+        vec3<f32>(-1.0, 1.0,1.0),
+        vec3<f32>(1.0, -1.0, 1.0),
+        vec3<f32>(-1.0, -1.0, 1.0),
+        vec3<f32>(1.0, 1.0, -1.0),
+        vec3<f32>(-1.0, 1.0, -1.0),
+        vec3<f32>(1.0, -1.0, -1.0),
+        vec3<f32>(-1.0, -1.0, -1.0)
+    );
     
     var stack = array<Stack, 8>(
         Stack(0u, 0u),
@@ -265,12 +248,20 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, world_size: vec3<f32
     );
     var stack_pos = 1u;
     var pool_index = 0u;
-    
+    var color = vec4<f32>(1.0, 0.0, 1.0, 1.0);
+
     for (var stack_pos = 1u; stack_pos > 0u; stack_pos = stack_pos - 1u) {
-    // while (stack_pos-- > 0) {
         let grid = &voxel_volume.indirection_pool[pool_index];
 
         for (var grid_index: u32 = 0u; grid_index < 8u; grid_index = grid_index + 1u) {
+            let cell_center = center + scale * POS[grid_index];
+            let min_box = cell_center - scale;
+            let max_box = cell_center + scale;
+
+            if (!raybox_intersect(min_box, max_box, ray_dir, ray_dir_inv, ray_position)) {
+                continue;
+            }
+
             let cell = (*grid).cells[grid_index].data;
             let cell_type = (cell & CELL_TYPE_MASK);
 
@@ -282,16 +273,35 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, world_size: vec3<f32
                 case 1u: {
                 // case CELL_TYPE_GRID_POINTER:
                     pool_index = (cell & CELL_DATA_MASK) >> 8u;
+                    center = cell_center;
+                    scale = scale / 2.0;
+                    stack_pos = stack_pos + 1u;
+                    color = color * (scale * 1.5);
                     break;
                 }
                 case 2u: {
                 // case CELL_TYPE_DATA: {
-                    
+                    let palette_index = (cell & CELL_DATA_MASK) >> 8u;
+                    let palette_color = voxel_volume.palette[palette_index];
+
+                    let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
+                    let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
+                    let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
+                    let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
+
+                    return vec4<f32>(
+                        red,
+                        green,
+                        blue,
+                        alpha
+                    );
                 }
                 default: {
-                    // noop
+                    continue;
                 }
             }
+
+            break;
         }
     }
 
@@ -343,8 +353,6 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     let model_front_face_pos = (best + center_offset);
 
-    // return vec4<f32>(floor(voxel_position) / voxel_volume.size, 1.0);
-
     let color: vec4<f32> = trace_voxel(model_ray_dir, model_front_face_pos, world_size);
     
 	
@@ -358,6 +366,5 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	// 	color = color * vec4<f32>(vec3<f32>(0.75), 1.0);
 	// }
     
-    // // return vec4<f32>(1.0, 0.0, 1.0, 1.0);
     return color;
 }

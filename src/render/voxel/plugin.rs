@@ -13,7 +13,7 @@ pub struct VoxelVolumePlugin;
 
 impl Plugin for VoxelVolumePlugin {
     fn build(&self, app: &mut App) {
-        let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
+        let mut shaders = app.world.resource_mut::<Assets<Shader>>();
         shaders.set_untracked(
             VOXEL_SHADER_HANDLE,
             Shader::from_wgsl(include_str!("voxel.wgsl")),
