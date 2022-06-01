@@ -17,7 +17,7 @@ use bevy::{
     DefaultPlugins,
 };
 use craft2::{VoxelVolumePlugin, VoxelVolume, VoxelBundle, color_to_rgba_u32, u24_to_bytes};
-use bevy_flycam::{PlayerPlugin, FlyCam};
+use bevy_flycam::{PlayerPlugin, FlyCam, MovementSettings};
 
 fn main() {
     App::new()
@@ -26,6 +26,10 @@ fn main() {
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(VoxelVolumePlugin)
         .add_plugin(PlayerPlugin)
+        .insert_resource(MovementSettings {
+            sensitivity: 0.00015, // default: 0.00012
+            speed: 1.0, // default: 12.0
+        })
         .add_startup_system(setup)
         .run();
 }
@@ -42,9 +46,17 @@ fn setup(
 ) {
     let mut test = VoxelVolume::new([32, 32, 32]);
     test.palette[0] = color_to_rgba_u32(Color::ORANGE_RED);
-    test.data.add_data(0, 0, 0, u24_to_bytes(0));
-    test.data.add_data(1, 0, 0, u24_to_bytes(0));
-    test.data.add_data(31, 0, 0, u24_to_bytes(0));
+    test.palette[1] = color_to_rgba_u32(Color::LIME_GREEN);
+    test.palette[2] = color_to_rgba_u32(Color::BLUE);
+    test.palette[3] = color_to_rgba_u32(Color::YELLOW);
+
+    for x in 0..31 {
+        test.data.add_data(x, 0, 0, u24_to_bytes((x as u32) % 4));
+        // for y in 0..31 {
+        //     test.data.add_data(x, y, 0, u24_to_bytes((x + y) as u32 % 4));
+        // }
+    }
+    
     let test_handle = voxel_volumes.add(test);
     commands.spawn_bundle(VoxelBundle {
         transform: Transform::from_xyz(0.0, 2.0, 0.0),
@@ -89,16 +101,16 @@ fn setup(
         ..Default::default()
     });
 
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Box::new(0.25, 0.25, 0.25))),
-        transform: Transform::from_xyz(1.125, 3.125, 1.125),
-        material: materials.add(StandardMaterial {
-            base_color: Color::INDIGO,
-            perceptual_roughness: 1.0,
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
+    // commands.spawn_bundle(PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::Box::new(0.25, 0.25, 0.25))),
+    //     transform: Transform::from_xyz(1.125, 3.125, 1.125),
+    //     material: materials.add(StandardMaterial {
+    //         base_color: Color::INDIGO,
+    //         perceptual_roughness: 1.0,
+    //         ..Default::default()
+    //     }),
+    //     ..Default::default()
+    // });
 
     // // left wall
     // let mut transform = Transform::from_xyz(2.5, 2.5, 0.0);
@@ -272,7 +284,7 @@ fn setup(
 
     // camera
     commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(5.0, 20.0, 5.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+        transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
         // transform: Transform::from_xyz(0.0, 1.0, -10.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
         ..Default::default()
     })
