@@ -54,6 +54,24 @@ var<uniform> voxel_volume_uniform: VoxelVolumeUniform;
 [[group(2), binding(0)]]
 var<storage, read> voxel_volume: VoxelVolume;
 
+struct Intersection {
+    hit: bool;
+    // point: vec3<f32>;
+    distance: f32;
+};
+
+fn raybox_intersect(box_min: vec3<f32>, box_max: vec3<f32>, ray_dir: vec3<f32>, ray_inv_dir: vec3<f32>, ray_origin: vec3<f32>) -> Intersection {
+	let tbot = ray_inv_dir * (box_min - ray_origin);
+	let ttop = ray_inv_dir * (box_max - ray_origin);
+	let tmin = min(ttop, tbot);
+	let tmax = max(ttop, tbot);
+	var traverse = max(tmin.xx, tmin.yz);
+	let traverse_near = max(traverse.x, traverse.y);
+	traverse = min(tmax.xx, tmax.yz);
+	let traverse_far = min(traverse.x, traverse.y);
+    return Intersection(traverse_far > max(traverse_near, 0.0), traverse_near);
+}
+
 let COLOR_RED_MASK = 0xFF000000u;
 let COLOR_GREEN_MASK = 0x00FF0000u;
 let COLOR_BLUE_MASK = 0x0000FF00u;
@@ -66,159 +84,6 @@ let CELL_TYPE_GRID_POINTER = 1u;
 let CELL_TYPE_DATA = 2u;
 let CELL_TYPE_EMPTY = 0u;
 
-// fn get_voxel(pos_in: vec3<f32>) -> vec4<f32> {
-//     let color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-//     var pos = vec3<u32>(pos_in);
-    
-//     var pool_index = 0u;
-//     var grid_size = u32(max(max(voxel_volume.size.x, voxel_volume.size.y), voxel_volume.size.z));
-//     var grid_cell_size = grid_size / 2u;
-//     let max_depth: i32 = i32(log2(f32(grid_size)));
-    
-//     for (var i: i32 = 0; i < max_depth; i = i + 1) {
-//         let grid = &voxel_volume.indirection_pool[pool_index];
-//         let grid_coord_x = u32(pos.x / grid_cell_size);
-//         let grid_coord_y = u32(pos.y / grid_cell_size);
-//         let grid_coord_z = u32(pos.z / grid_cell_size);
-//         let grid_index = grid_coord_x + grid_coord_y * 2u + grid_coord_z * 2u * 2u;
-//         let cell = (*grid).cells[grid_index].data;
-//         let cell_type = (cell & CELL_TYPE_MASK);
-
-//         switch (cell_type) {
-//             case 1u: {
-//             // case CELL_TYPE_GRID_POINTER: {
-//                 pool_index = (cell & CELL_DATA_MASK) >> 8u;
-//                 grid_cell_size = grid_cell_size / 2u;
-//                 pos = vec3<u32>(
-//                     pos.x - grid_coord_x * grid_cell_size,
-//                     pos.y - grid_coord_y * grid_cell_size,
-//                     pos.z - grid_coord_z * grid_cell_size
-//                 );
-//             }
-//             case 2u: {
-//             // case CELL_TYPE_DATA: {
-//                 let palette_index = (cell & CELL_DATA_MASK) >> 8u;
-//                 let palette_color = voxel_volume.palette[palette_index];
-
-//                 let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
-//                 let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
-//                 let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
-//                 let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
-
-//                 return vec4<f32>(
-//                     red,
-//                     green,
-//                     blue,
-//                     alpha
-//                 );
-//             }
-//             default: {
-//                 // discard;
-//                 // return vec4<f32>(f32(grid_coord_x) / f32(grid_cell_size), f32(grid_coord_y) / f32(grid_cell_size), f32(grid_coord_z) / f32(grid_cell_size), 1.0);
-//                 return vec4<f32>(f32(pos.x) / voxel_volume.size.x, f32(pos.y) / voxel_volume.size.y, f32(pos.z) / voxel_volume.size.z, 1.0);
-//             }
-//         }
-//     }
-
-//     // return vec4<f32>(0.0, 0.0, 1.0, 1.0);
-
-//     discard;
-// }
-
-// struct Stack {
-//     index: u32;
-//     center: vec3<f32>;
-//     scale: f32;
-// }
-
-struct Intersection {
-    hit: bool;
-    point: vec3<f32>;
-};
-
-fn raybox_intersect(box_min: vec3<f32>, box_max: vec3<f32>, ray_dir: vec3<f32>, ray_inv_dir: vec3<f32>, ray_origin: vec3<f32>) -> Intersection {
-	let tbot = ray_inv_dir * (box_min - ray_origin);
-	let ttop = ray_inv_dir * (box_max - ray_origin);
-	let tmin = min(ttop, tbot);
-	let tmax = max(ttop, tbot);
-	var t = max(tmin.xx, tmin.yz);
-	let t0 = max(t.x, t.y);
-	t = min(tmax.xx, tmax.yz);
-	let t1 = min(t.x, t.y);
-    return Intersection(t1 > max(t0, 0.0), ray_origin + ray_dir * t1);
-}
-
-// fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>) -> vec4<f32> {
-//     let center = vec3<f32>(0.0, 0.0, 0.0);
-//     var scale = 1.0;
-//     let min_box = center - scale;
-//     let max_box = center + scale;
-//     var f = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-    
-//     var stack = array<Stack, 10>();
-//     var stack_pos = 1u;
-//     var pool_index = 0u;
-//     scale = scale * 0.5;
-//     stack[0] = Stack(0u, center, scale);
-    
-//     while (stack_pos-- > 0) {
-//         f = vec4<f32>(0.1, 0.1, 0.1, 0.1);
-//         center = stack[stack_pos].center;
-//         index = stack[stack_pos].index;
-//         scale = stack[stack_pos].scale;
-
-//         let grid = &voxel_volume.indirection_pool[pool_index];
-//         var accumulated_offset = 0u;
-
-//         for (var grid_index: u32 = 0u; grid_index < 8u; grid_index++) {
-//             let cell = (*grid).cells[grid_index].data;
-//             let cell_type = (cell & CELL_TYPE_MASK);
-
-//             let new_center = center + scale * POS[grid_index];
-//             let min_box = new_center - scale;
-//             let max_box = new_center + scale;
-
-//             if (!raybox_intersect(min_box, max_box, ray_dir, ray_position)) {
-//                 if (cell_type != CELL_TYPE_DATA) {
-//                     accumulated_offset = accumulated_offset + 1;
-//                 }
-//                 continue;
-//             }
-
-//             if (cell_type == CELL_TYPE_DATA) {
-//                 let palette_index = (cell & CELL_DATA_MASK) >> 8u;
-//                 let palette_color = voxel_volume.palette[palette_index];
-
-//                 let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
-//                 let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
-//                 let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
-//                 let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
-
-//                 return vec4<f32>(
-//                     red,
-//                     green,
-//                     blue,
-//                     alpha
-//                 );
-//             } else {
-
-//             }
-
-//             switch (cell_type) {
-//                 case CELL_TYPE_EMPTY:
-//                     continue;
-//                 case CELL_TYPE_GRID_POINTER:
-//                     pool_index = (cell & CELL_DATA_MASK) >> 8u;
-//                     break;
-//                 case CELL_TYPE_DATA: {
-                    
-//                 }
-//             }
-//         }
-//     }
-// }
-
-
 struct Stack {
     pool_index: u32;
     grid_index: u32;
@@ -226,7 +91,7 @@ struct Stack {
     center: vec3<f32>;
 };
 
-fn trace_voxel(model_center: vec3<f32>, ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec3<f32>, world_size: vec3<f32>) -> vec4<f32> {
+fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec3<f32>) -> vec4<f32> {
     let ray_dir_inv = 1.0 / ray_dir;
 
     var POS = array<vec3<f32>, 8>(
@@ -251,7 +116,7 @@ fn trace_voxel(model_center: vec3<f32>, ray_dir: vec3<f32>, ray_position: vec3<f
         Stack(0u, 0u, 7u, vec3<f32>(0.0, 0.0, 0.0))
     );
 
-    var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    var color = vec4<f32>(0.75, 0.75, 0.75, 1.0);
     var hit_dist = 1000000000.0;
 
     for (var stack_pos = 1u; stack_pos > 0u; stack_pos = stack_pos - 1u) {
@@ -269,10 +134,8 @@ fn trace_voxel(model_center: vec3<f32>, ray_dir: vec3<f32>, ray_position: vec3<f
             var min_box = cell_center - scale;
             var max_box = cell_center + scale;
 
-            // current thinking: ray direction may be incorrect for certain orientations of the box as the raybox_intersect is expecting an AABB
-            // which my have the wrong orientation when viewed from some angles. solution would be to normalize the ray somehow
-
             let intersection = raybox_intersect(min_box, max_box, ray_dir, ray_dir_inv, ray_position);
+            
             if (!intersection.hit) {
                 continue;
             }
@@ -284,15 +147,15 @@ fn trace_voxel(model_center: vec3<f32>, ray_dir: vec3<f32>, ray_position: vec3<f
                 case 0u: {
                 // case CELL_TYPE_EMPTY:
                     // if (depth > 0u) {
-                    //     let dist = length(camera_position - intersection.point);
+                    //     let dist = intersection.distance;
                     //     if (dist < hit_dist) {
                     //         hit_dist = dist;
-                    //         color = vec4<f32>(
-                    //             f32(curr_grid_index + 1u) / 8.0,
-                    //             1.0 - (f32(curr_grid_index + 1u) / 8.0),
-                    //             f32(curr_grid_index + 1u) / 8.0,
-                    //             1.0
-                    //         );
+                            // color = vec4<f32>(
+                            //     f32(curr_grid_index + 1u) / 8.0,
+                            //     1.0 - (f32(curr_grid_index + 1u) / 8.0),
+                            //     f32(curr_grid_index + 1u) / 8.0,
+                            //     0.2
+                            // );
                     //     }
                     // }
                     continue;
@@ -305,7 +168,7 @@ fn trace_voxel(model_center: vec3<f32>, ray_dir: vec3<f32>, ray_position: vec3<f
 
                     let next_stack_entry = &stack[stack_pos];
                     (*next_stack_entry).pool_index = next_pool_index;
-                    (*next_stack_entry).depth = (*stack_entry).depth + 1u;
+                    (*next_stack_entry).depth = depth + 1u;
                     (*next_stack_entry).center = cell_center;
 
                     stack_pos = stack_pos + 2u;
@@ -320,10 +183,12 @@ fn trace_voxel(model_center: vec3<f32>, ray_dir: vec3<f32>, ray_position: vec3<f
                     let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
                     let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
                     let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
-                    
-                    let dist = length(camera_position - intersection.point);
-                    if (dist < hit_dist) {
-                        hit_dist = dist;
+
+                    let hit_point = ray_position + ray_dir * intersection.distance;
+                    let dist_to_camera = length(hit_point - camera_position);
+
+                    if (dist_to_camera < hit_dist) {
+                        hit_dist = dist_to_camera;
                         color = vec4<f32>(
                             red,
                             green,
@@ -331,6 +196,7 @@ fn trace_voxel(model_center: vec3<f32>, ray_dir: vec3<f32>, ray_position: vec3<f
                             alpha
                         );
                     }
+
                     continue;
                 }
                 default: {
@@ -375,7 +241,7 @@ struct FragmentInput {
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let world_size = voxel_volume.size * voxel_volume.resolution;
-    let model_world_position = voxel_volume_uniform.transform[3].xyz;
+    // let model_world_position = voxel_volume_uniform.transform[3].xyz;
     let camera_to_model = voxel_volume_uniform.inverse_transform * view.view;
     let model_back_face_pos = in.vertex_position;
     let model_ray_origin = (camera_to_model * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
@@ -392,9 +258,9 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let model_front_face_pos = best; // [-1, 1]
     let model_front_face_ray_dir = normalize(model_front_face_pos - model_ray_origin);
 
-    let scaled_model_front_face_pos = (model_front_face_pos + 1.0) / 2.0; // [0, 1]
+    // let scaled_model_front_face_pos = (model_front_face_pos + 1.0) / 2.0; // [0, 1]
 
-    let color: vec4<f32> = trace_voxel(model_world_position, model_ray_dir, model_front_face_pos, model_ray_origin, world_size);
+    let color: vec4<f32> = trace_voxel(model_front_face_ray_dir, model_front_face_pos, model_ray_origin);
     
 	
 	// if (mask.x) {
