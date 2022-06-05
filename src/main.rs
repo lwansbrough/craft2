@@ -51,7 +51,6 @@ fn setup(
     test.palette[3] = color_to_rgba_u32(Color::YELLOW);
 
     for x in 0..32 {
-        println!("{:?}", x);
         test.data.add_data(x, 0, 0, u24_to_bytes((x as u32) % 4));
         // for y in 0..31 {
         //     test.data.add_data(x, y, 0, u24_to_bytes((x + y) as u32 % 4));
