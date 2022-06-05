@@ -135,8 +135,10 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
             var max_box = cell_center + scale;
 
             let intersection = raybox_intersect(min_box, max_box, ray_dir, ray_dir_inv, ray_position);
+            let hit_point = ray_position + ray_dir * intersection.distance;
+            let dist_to_camera = length(hit_point - camera_position);
             
-            if (!intersection.hit) {
+            if (!intersection.hit || dist_to_camera > hit_dist) {
                 continue;
             }
 
@@ -146,18 +148,6 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
             switch (cell_type) {
                 case 0u: {
                 // case CELL_TYPE_EMPTY:
-                    // if (depth > 0u) {
-                    //     let dist = intersection.distance;
-                    //     if (dist < hit_dist) {
-                    //         hit_dist = dist;
-                            // color = vec4<f32>(
-                            //     f32(curr_grid_index + 1u) / 8.0,
-                            //     1.0 - (f32(curr_grid_index + 1u) / 8.0),
-                            //     f32(curr_grid_index + 1u) / 8.0,
-                            //     0.2
-                            // );
-                    //     }
-                    // }
                     continue;
                 }
                 case 1u: {
@@ -184,18 +174,13 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
                     let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
                     let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
 
-                    let hit_point = ray_position + ray_dir * intersection.distance;
-                    let dist_to_camera = length(hit_point - camera_position);
-
-                    if (dist_to_camera < hit_dist) {
-                        hit_dist = dist_to_camera;
-                        color = vec4<f32>(
-                            red,
-                            green,
-                            blue,
-                            alpha
-                        );
-                    }
+                    hit_dist = dist_to_camera;
+                    color = vec4<f32>(
+                        red,
+                        green,
+                        blue,
+                        alpha
+                    );
 
                     continue;
                 }
@@ -258,9 +243,16 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let model_front_face_pos = best; // [-1, 1]
     let model_front_face_ray_dir = normalize(model_front_face_pos - model_ray_origin);
 
-    // let scaled_model_front_face_pos = (model_front_face_pos + 1.0) / 2.0; // [0, 1]
-
     let color: vec4<f32> = trace_voxel(model_front_face_ray_dir, model_front_face_pos, model_ray_origin);
+
+    // let dist_to_camera = length(model_front_face_pos - model_ray_origin);
+
+    // let color: vec4<f32> = vec4<f32>(
+    //     1.0 / dist_to_camera,
+    //     1.0 / dist_to_camera,
+    //     1.0 / dist_to_camera,
+    //     1.0
+    // );
     
 	
 	// if (mask.x) {
