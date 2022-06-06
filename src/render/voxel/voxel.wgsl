@@ -95,29 +95,41 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
     let ray_dir_inv = 1.0 / ray_dir;
 
     var POS = array<vec3<f32>, 8>(
-        vec3<f32>(1.0, 1.0, 1.0),
-        vec3<f32>(-1.0, 1.0,1.0),
-        vec3<f32>(1.0, -1.0, 1.0),
         vec3<f32>(-1.0, -1.0, 1.0),
-        vec3<f32>(1.0, 1.0, -1.0),
-        vec3<f32>(-1.0, 1.0, -1.0),
+        vec3<f32>(1.0, -1.0, 1.0),
+        vec3<f32>(-1.0, 1.0, 1.0),
+        vec3<f32>(1.0, 1.0, 1.0),
+        vec3<f32>(-1.0, -1.0, -1.0),
         vec3<f32>(1.0, -1.0, -1.0),
-        vec3<f32>(-1.0, -1.0, -1.0)
+        vec3<f32>(-1.0, 1.0, -1.0),
+        vec3<f32>(1.0, 1.0, -1.0),  
     );
     
     var stack = array<Stack, 8>(
-        Stack(0u, 0u, 0u, vec3<f32>(0.0, 0.0, 0.0)),
         Stack(0u, 0u, 1u, vec3<f32>(0.0, 0.0, 0.0)),
         Stack(0u, 0u, 2u, vec3<f32>(0.0, 0.0, 0.0)),
         Stack(0u, 0u, 3u, vec3<f32>(0.0, 0.0, 0.0)),
         Stack(0u, 0u, 4u, vec3<f32>(0.0, 0.0, 0.0)),
         Stack(0u, 0u, 5u, vec3<f32>(0.0, 0.0, 0.0)),
         Stack(0u, 0u, 6u, vec3<f32>(0.0, 0.0, 0.0)),
-        Stack(0u, 0u, 7u, vec3<f32>(0.0, 0.0, 0.0))
+        Stack(0u, 0u, 7u, vec3<f32>(0.0, 0.0, 0.0)),
+        Stack(0u, 0u, 8u, vec3<f32>(0.0, 0.0, 0.0))
     );
 
-    var color = vec4<f32>(0.75, 0.75, 0.75, 1.0);
+    var depth_palette = array<vec4<f32>, 8>(
+        vec4<f32>(0.0, 0.0, 1.0, 1.0),
+        vec4<f32>(0.0, 1.0, 0.0, 1.0),
+        vec4<f32>(1.0, 0.0, 0.0, 1.0),
+        vec4<f32>(0.0, 1.0, 1.0, 1.0),
+        vec4<f32>(1.0, 1.0, 0.0, 1.0),
+        vec4<f32>(1.0, 0.0, 1.0, 1.0),
+        vec4<f32>(0.5, 0.5, 0.5, 1.0),
+        vec4<f32>(0.0, 0.0, 0.0, 1.0)
+    );
+
+    var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
     var hit_dist = 1000000000.0;
+    var hit_depth = 0u;
 
     for (var stack_pos = 1u; stack_pos > 0u; stack_pos = stack_pos - 1u) {
         let stack_entry = &stack[stack_pos - 1u];
@@ -126,13 +138,13 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
         let center = (*stack_entry).center;
         let depth = (*stack_entry).depth;
         
-        let scale = 1.0 / pow(2.0, f32(depth) + 1.0);
+        let scale = 1.0 / pow(2.0, f32(depth));
         let grid = &voxel_volume.indirection_pool[pool_index];
 
         for (var curr_grid_index: u32 = grid_index; curr_grid_index < 8u; curr_grid_index = curr_grid_index + 1u) {
             let cell_center = center + scale * POS[curr_grid_index];
-            var min_box = cell_center - scale;
-            var max_box = cell_center + scale;
+            var min_box = cell_center - vec3<f32>(scale);
+            var max_box = cell_center + vec3<f32>(scale);
 
             let intersection = raybox_intersect(min_box, max_box, ray_dir, ray_dir_inv, ray_position);
             let hit_point = ray_position + ray_dir * intersection.distance;
@@ -142,14 +154,29 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
                 continue;
             }
 
+            // if (depth == 1u) {
+            //     hit_dist = dist_to_camera;
+            //     color = vec4<f32>(
+            //         1.0 / dist_to_camera,
+            //         1.0 / dist_to_camera,
+            //         1.0 / dist_to_camera,
+            //         1.0
+            //     );
+            // }
+
+            if (depth > hit_depth) {
+                hit_depth = depth;
+                color = depth_palette[depth];
+            }
+
             let cell = (*grid).cells[curr_grid_index].data;
             let cell_type = (cell & CELL_TYPE_MASK);
 
             switch (cell_type) {
-                case 0u: {
-                // case CELL_TYPE_EMPTY:
-                    continue;
-                }
+                // case 0u: {
+                // // case CELL_TYPE_EMPTY:
+                //     continue;
+                // }
                 case 1u: {
                 // case CELL_TYPE_GRID_POINTER:
                     let next_pool_index = (cell & CELL_DATA_MASK) >> 8u;
@@ -164,26 +191,32 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
                     stack_pos = stack_pos + 2u;
                     break;
                 }
-                case 2u: {
-                // case CELL_TYPE_DATA: {
-                    let palette_index = (cell & CELL_DATA_MASK) >> 8u;
-                    let palette_color = voxel_volume.palette[palette_index];
+                // case 2u: {
+                // // case CELL_TYPE_DATA: {
+                //     let palette_index = (cell & CELL_DATA_MASK) >> 8u;
+                //     let palette_color = voxel_volume.palette[palette_index];
 
-                    let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
-                    let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
-                    let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
-                    let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
+                //     let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
+                //     let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
+                //     let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
+                //     let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
 
-                    hit_dist = dist_to_camera;
-                    color = vec4<f32>(
-                        red,
-                        green,
-                        blue,
-                        alpha
-                    );
+                //     hit_dist = dist_to_camera;
+                //     color = vec4<f32>(
+                //         red,
+                //         green,
+                //         blue,
+                //         alpha
+                //     );
+                //     // color = vec4<f32>(
+                //     //     1.0 / dist_to_camera,
+                //     //     1.0 / dist_to_camera,
+                //     //     1.0 / dist_to_camera,
+                //     //     1.0
+                //     // );
 
-                    continue;
-                }
+                //     continue;
+                // }
                 default: {
                     continue;
                 }
