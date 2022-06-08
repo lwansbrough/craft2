@@ -18,7 +18,7 @@ pub struct Octree {
 
 impl Octree {
     pub fn new(depth_max: u8) -> Octree {
-        let grids_max: [u8; 3] = [(2u16.pow(u32::from(depth_max)) - 1) as u8; 3];
+        let grids_max: [u8; 3] = [(2u16.pow(u32::from(depth_max))) as u8; 3];
         let mut pool = Vec::with_capacity(1);
         pool.push(IndirectionGrid::default());
         Octree {
@@ -138,9 +138,11 @@ impl Octree {
             self.indirection_pool.reserve(1);
 
             if self.grids_next_free[0] < self.grids_max[0] - 1 {
+                self.indirection_pool.reserve(1);
                 self.grids_next_free[0] += 1;
             } else {
                 if self.grids_next_free[1] < self.grids_max[1] - 1 {
+                    self.indirection_pool.reserve(1);
                     self.grids_next_free[0] = 0;
                     self.grids_next_free[1] += 1;
                 } else {
@@ -152,7 +154,7 @@ impl Octree {
 
             let next_free = self.grids_next_free.clone();
             let child_grid = IndirectionGrid::new(depth, grid_coord, next_free);
-            let pool_index = u32::from(u16::from(next_free[0]) + (u16::from(next_free[1]) * 256u16) + (u16::from(next_free[2]) * 256 * 256));
+            let pool_index = u32::from(u16::from(next_free[0]) + (u16::from(next_free[1]) * u16::from(self.grids_max[1])) + (u16::from(next_free[2]) * u16::from(self.grids_max[2]) * u16::from(self.grids_max[1])));
             self.indirection_pool.insert(pool_index as usize, child_grid);
 
             child_index = pool_index;

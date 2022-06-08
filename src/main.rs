@@ -28,7 +28,7 @@ fn main() {
         .add_plugin(PlayerPlugin)
         .insert_resource(MovementSettings {
             sensitivity: 0.00015, // default: 0.00012
-            speed: 1.0, // default: 12.0
+            speed: 10.0, // default: 12.0
         })
         .add_startup_system(setup)
         .run();
@@ -50,30 +50,29 @@ fn setup(
     test.palette[2] = color_to_rgba_u32(Color::BLUE);
     test.palette[3] = color_to_rgba_u32(Color::YELLOW);
 
-    for x in 0..32 {
-        // test.data.add_data(x, 0, 0, u24_to_bytes((x as u32) % 4));
-        for y in 0..32 {
-            test.data.add_data(x, y, 0, u24_to_bytes((x + y) as u32 % 4));
+    for x in 0..=31 {
+        for z in 0..=31 {
+            test.data.add_data(x, 0, z, u24_to_bytes((x + z) as u32 % 4));
         }
     }
     
     let test_handle = voxel_volumes.add(test);
-    commands.spawn_bundle(VoxelBundle {
-        transform: Transform::from_xyz(0.0, 2.0, 0.0),
-        volume: test_handle.clone(),
-        ..Default::default()
-    });
+    // commands.spawn_bundle(VoxelBundle {
+    //     transform: Transform::from_xyz(0.0, 2.0, 0.0),
+    //     volume: test_handle.clone(),
+    //     ..Default::default()
+    // });
     // voxel volume
 
-    // for x in 0..16 {
-    //     for z in 0..16 {
-    //         commands.spawn_bundle(VoxelBundle {
-    //             transform: Transform::from_xyz((x * 16) as f32, 1.0, (z * 16) as f32),
-    //             volume: test_handle.clone(),
-    //             ..Default::default()
-    //         });
-    //     }
-    // }
+    for x in 0..256 {
+        for z in 0..256 {
+            commands.spawn_bundle(VoxelBundle {
+                transform: Transform::from_xyz((x * 2) as f32, 1.0, (z * 2) as f32),
+                volume: test_handle.clone(),
+                ..Default::default()
+            });
+        }
+    }
     
     
 
@@ -90,16 +89,16 @@ fn setup(
     // });
 
     // ground plane
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 10.0 })),
-        material: materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            perceptual_roughness: 1.0,
-            ..Default::default()
-        }),
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
-        ..Default::default()
-    });
+    // commands.spawn_bundle(PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::Plane { size: 10.0 })),
+    //     material: materials.add(StandardMaterial {
+    //         base_color: Color::WHITE,
+    //         perceptual_roughness: 1.0,
+    //         ..Default::default()
+    //     }),
+    //     transform: Transform::from_xyz(0.0, 0.0, 0.0),
+    //     ..Default::default()
+    // });
 
     // commands.spawn_bundle(PbrBundle {
     //     mesh: meshes.add(Mesh::from(shape::Box::new(0.25, 0.25, 0.25))),
