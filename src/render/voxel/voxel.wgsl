@@ -116,23 +116,13 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
         Stack(0u, 0u, 8u, vec3<f32>(0.0, 0.0, 0.0))
     );
 
-    var depth_palette = array<vec4<f32>, 8>(
-        vec4<f32>(0.0, 0.0, 1.0, 1.0),
-        vec4<f32>(0.0, 1.0, 0.0, 1.0),
-        vec4<f32>(1.0, 0.0, 0.0, 1.0),
-        vec4<f32>(0.0, 1.0, 1.0, 1.0),
-        vec4<f32>(1.0, 1.0, 0.0, 1.0),
-        vec4<f32>(1.0, 0.0, 1.0, 1.0),
-        vec4<f32>(0.5, 0.5, 0.5, 1.0),
-        vec4<f32>(0.0, 0.0, 0.0, 1.0)
-    );
-
     var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
     var hit_dist = 1000000000.0;
     var hit_depth = 0u;
 
-    for (var stack_pos = 1u; stack_pos > 0u; stack_pos = stack_pos - 1u) {
-        let stack_entry = &stack[stack_pos - 1u];
+    for (var stack_pos: u32 = 1u; stack_pos > 0u; stack_pos = stack_pos - 1u) {
+        let stack_index = stack_pos - 1u;
+        let stack_entry = &stack[stack_index];
         let pool_index = (*stack_entry).pool_index;
         let grid_index = (*stack_entry).grid_index;
         let center = (*stack_entry).center;
@@ -154,69 +144,49 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
                 continue;
             }
 
-            // if (depth == 1u) {
-            //     hit_dist = dist_to_camera;
-            //     color = vec4<f32>(
-            //         1.0 / dist_to_camera,
-            //         1.0 / dist_to_camera,
-            //         1.0 / dist_to_camera,
-            //         1.0
-            //     );
-            // }
-
-            if (depth > hit_depth) {
-                hit_depth = depth;
-                color = depth_palette[depth];
-            }
-
             let cell = (*grid).cells[curr_grid_index].data;
             let cell_type = (cell & CELL_TYPE_MASK);
 
             switch (cell_type) {
-                // case 0u: {
-                // // case CELL_TYPE_EMPTY:
-                //     continue;
-                // }
+                case 0u: {
+                // case CELL_TYPE_EMPTY:
+                    continue;
+                }
                 case 1u: {
                 // case CELL_TYPE_GRID_POINTER:
                     let next_pool_index = (cell & CELL_DATA_MASK) >> 8u;
 
                     (*stack_entry).grid_index = curr_grid_index + 1u;
 
-                    let next_stack_entry = &stack[stack_pos];
+                    let next_stack_entry = &stack[stack_index + 1u];
                     (*next_stack_entry).pool_index = next_pool_index;
+                    (*next_stack_entry).grid_index = 0u;
                     (*next_stack_entry).depth = depth + 1u;
                     (*next_stack_entry).center = cell_center;
 
                     stack_pos = stack_pos + 2u;
                     break;
                 }
-                // case 2u: {
-                // // case CELL_TYPE_DATA: {
-                //     let palette_index = (cell & CELL_DATA_MASK) >> 8u;
-                //     let palette_color = voxel_volume.palette[palette_index];
+                case 2u: {
+                // case CELL_TYPE_DATA: {
+                    let palette_index = (cell & CELL_DATA_MASK) >> 8u;
+                    let palette_color = voxel_volume.palette[palette_index];
 
-                //     let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
-                //     let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
-                //     let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
-                //     let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
+                    let alpha = f32(palette_color & COLOR_ALPHA_MASK) / 255.0;
+                    let blue = f32((palette_color & COLOR_BLUE_MASK) >> 8u) / 255.0;
+                    let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
+                    let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
 
-                //     hit_dist = dist_to_camera;
-                //     color = vec4<f32>(
-                //         red,
-                //         green,
-                //         blue,
-                //         alpha
-                //     );
-                //     // color = vec4<f32>(
-                //     //     1.0 / dist_to_camera,
-                //     //     1.0 / dist_to_camera,
-                //     //     1.0 / dist_to_camera,
-                //     //     1.0
-                //     // );
+                    hit_dist = dist_to_camera;
+                    color = vec4<f32>(
+                        red,
+                        green,
+                        blue,
+                        alpha
+                    );
 
-                //     continue;
-                // }
+                    continue;
+                }
                 default: {
                     continue;
                 }

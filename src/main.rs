@@ -51,10 +51,10 @@ fn setup(
     test.palette[3] = color_to_rgba_u32(Color::YELLOW);
 
     for x in 0..32 {
-        test.data.add_data(x, 0, 0, u24_to_bytes((x as u32) % 4));
-        // for y in 0..31 {
-        //     test.data.add_data(x, y, 0, u24_to_bytes((x + y) as u32 % 4));
-        // }
+        // test.data.add_data(x, 0, 0, u24_to_bytes((x as u32) % 4));
+        for y in 0..32 {
+            test.data.add_data(x, y, 0, u24_to_bytes((x + y) as u32 % 4));
+        }
     }
     
     let test_handle = voxel_volumes.add(test);
@@ -103,7 +103,7 @@ fn setup(
 
     // commands.spawn_bundle(PbrBundle {
     //     mesh: meshes.add(Mesh::from(shape::Box::new(0.25, 0.25, 0.25))),
-    //     transform: Transform::from_xyz(1.125, 3.125, 1.125),
+    //     transform: Transform::from_xyz(1.125, 0.875, 1.125),
     //     material: materials.add(StandardMaterial {
     //         base_color: Color::INDIGO,
     //         perceptual_roughness: 1.0,
