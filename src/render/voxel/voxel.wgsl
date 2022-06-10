@@ -32,8 +32,8 @@ struct VoxelVolume {
 };
 
 struct Vertex {
-    [[location(1)]] position: vec3<f32>;
     [[location(0)]] normal: vec3<f32>;
+    [[location(1)]] position: vec3<f32>;
     [[location(2)]] uv: vec2<f32>;
 };
 
@@ -91,7 +91,12 @@ struct Stack {
     center: vec3<f32>;
 };
 
-fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec3<f32>) -> vec4<f32> {
+struct TraceResult {
+    color: vec4<f32>;
+    distance: f32;
+};
+
+fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>) -> TraceResult {
     let ray_dir_inv = 1.0 / ray_dir;
 
     var POS = array<vec3<f32>, 8>(
@@ -119,6 +124,7 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
     var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
     var hit_dist = 1000000000.0;
     var hit_depth = 0u;
+    var curr_dist = 0.0;
 
     for (var stack_pos: u32 = 1u; stack_pos > 0u; stack_pos = stack_pos - 1u) {
         let stack_index = stack_pos - 1u;
@@ -131,18 +137,25 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
         let scale = 1.0 / pow(2.0, f32(depth));
         let grid = &voxel_volume.indirection_pool[pool_index];
 
+        // var max_depth = u32(floor(8.0 * min(1.0, 100.0 / curr_dist) + 1.0));
+
+        // if (depth == max_depth) {
+
+        // }
+        // else {}
+
         for (var curr_grid_index: u32 = grid_index; curr_grid_index < 8u; curr_grid_index = curr_grid_index + 1u) {
             let cell_center = center + scale * POS[curr_grid_index];
             var min_box = cell_center - vec3<f32>(scale);
             var max_box = cell_center + vec3<f32>(scale);
 
             let intersection = raybox_intersect(min_box, max_box, ray_dir, ray_dir_inv, ray_position);
-            let hit_point = ray_position + ray_dir * intersection.distance;
-            let dist_to_camera = length(hit_point - camera_position);
             
-            if (!intersection.hit || dist_to_camera > hit_dist) {
+            if (!intersection.hit || intersection.distance > hit_dist) {
                 continue;
             }
+
+            curr_dist = intersection.distance;
 
             let cell = (*grid).cells[curr_grid_index].data;
             let cell_type = (cell & CELL_TYPE_MASK);
@@ -177,7 +190,7 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
                     let green = f32((palette_color & COLOR_GREEN_MASK) >> 16u) / 255.0;
                     let red = f32((palette_color & COLOR_RED_MASK) >> 24u) / 255.0;
 
-                    hit_dist = dist_to_camera;
+                    hit_dist = intersection.distance;
                     color = vec4<f32>(
                         red,
                         green,
@@ -196,7 +209,7 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, camera_position: vec
         }
     }
 
-    return color;
+    return TraceResult(color, hit_dist);
 }
 
 [[stage(vertex)]]
@@ -226,15 +239,21 @@ struct FragmentInput {
     [[location(3)]] vertex_position: vec3<f32>;
 };
 
+struct FragmentOutput {
+    [[location(0)]] color: vec4<f32>;
+    // [[builtin(frag_depth)]] depth: f32;
+};
+
 [[stage(fragment)]]
-fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
+fn fragment(in: FragmentInput) -> FragmentOutput {
     let world_size = voxel_volume.size * voxel_volume.resolution;
+    let half_world_size = world_size / 2.0;
     // let model_world_position = voxel_volume_uniform.transform[3].xyz;
     let camera_to_model = voxel_volume_uniform.inverse_transform * view.view;
     let model_back_face_pos = in.vertex_position;
     let model_ray_origin = (camera_to_model * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
     let model_ray_dir = normalize(model_back_face_pos - model_ray_origin);
-    let center_offset = vec3<f32>(0.5, 0.5, 0.5) * world_size;
+    let center_offset = half_world_size;
 
     let model_n = -sign(model_ray_origin);
     let d = -center_offset;
@@ -243,32 +262,11 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let best_t = max(max(t.x * f.x, t.y * f.y), t.z * f.z);
     let best = select(model_back_face_pos, model_ray_origin + best_t * model_ray_dir, f.x > 0.0 || f.y > 0.0 || f.z > 0.0);
 
-    let model_front_face_pos = best; // [-1, 1]
+    let model_front_face_pos = best / half_world_size; // [-1, 1]
     let model_front_face_ray_dir = normalize(model_front_face_pos - model_ray_origin);
 
-    let color: vec4<f32> = trace_voxel(model_front_face_ray_dir, model_front_face_pos, model_ray_origin);
+    let result = trace_voxel(model_front_face_ray_dir, model_front_face_pos);
 
-    // let dist_to_camera = length(model_front_face_pos - model_ray_origin);
-
-    // let color: vec4<f32> = vec4<f32>(
-    //     1.0 / dist_to_camera,
-    //     1.0 / dist_to_camera,
-    //     1.0 / dist_to_camera,
-    //     1.0
-    // );
-    
-	
-	// if (mask.x) {
-	// 	color = color * vec4<f32>(vec3<f32>(0.5), 1.0);
-	// }
-	// if (mask.y) {
-	// 	color = color * vec4<f32>(vec3<f32>(1.0), 1.0);
-	// }
-	// if (mask.z) {
-	// 	color = color * vec4<f32>(vec3<f32>(0.75), 1.0);
-	// }
-    
-    // return vec4<f32>(scaled_model_front_face_pos, 1.0);
-
-    return color;
+    // return FragmentOutput(result.color, result.distance);
+    return FragmentOutput(result.color);
 }

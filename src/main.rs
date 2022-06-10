@@ -51,21 +51,18 @@ fn setup(
     test.palette[3] = color_to_rgba_u32(Color::YELLOW);
 
     for x in 0..=31 {
-        for z in 0..=31 {
-            test.data.add_data(x, 0, z, u24_to_bytes((x + z) as u32 % 4));
+        for y in 0..=31 {
+            for z in 0..=31 {
+                test.data.add_data(x, y, z, u24_to_bytes((x as u32 + y as u32 + z as u32) % 4));
+            }
         }
     }
     
     let test_handle = voxel_volumes.add(test);
-    // commands.spawn_bundle(VoxelBundle {
-    //     transform: Transform::from_xyz(0.0, 2.0, 0.0),
-    //     volume: test_handle.clone(),
-    //     ..Default::default()
-    // });
-    // voxel volume
 
-    for x in 0..256 {
-        for z in 0..256 {
+    // voxel volume
+    for x in 0..32 {
+        for z in 0..32 {
             commands.spawn_bundle(VoxelBundle {
                 transform: Transform::from_xyz((x * 2) as f32, 1.0, (z * 2) as f32),
                 volume: test_handle.clone(),
@@ -89,16 +86,16 @@ fn setup(
     // });
 
     // ground plane
-    // commands.spawn_bundle(PbrBundle {
-    //     mesh: meshes.add(Mesh::from(shape::Plane { size: 10.0 })),
-    //     material: materials.add(StandardMaterial {
-    //         base_color: Color::WHITE,
-    //         perceptual_roughness: 1.0,
-    //         ..Default::default()
-    //     }),
-    //     transform: Transform::from_xyz(0.0, 0.0, 0.0),
-    //     ..Default::default()
-    // });
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Plane { size: 10.0 })),
+        material: materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            perceptual_roughness: 1.0,
+            ..Default::default()
+        }),
+        transform: Transform::from_xyz(0.0, -1.0, 0.0),
+        ..Default::default()
+    });
 
     // commands.spawn_bundle(PbrBundle {
     //     mesh: meshes.add(Mesh::from(shape::Box::new(0.25, 0.25, 0.25))),
@@ -141,7 +138,7 @@ fn setup(
     // // cube
     // commands
     //     .spawn_bundle(PbrBundle {
-    //         mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+    //         mesh: meshes.add(Mesh::from(shape::Box::new(16.0, 16.0, 16.0))),
     //         material: materials.add(StandardMaterial {
     //             base_color: Color::PINK,
     //             ..Default::default()
@@ -150,6 +147,17 @@ fn setup(
     //         ..Default::default()
     //     })
     //     .insert(Movable);
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Box::new(1.0, 1.0, 1.0))),
+            material: materials.add(StandardMaterial {
+                base_color: Color::PINK,
+                ..Default::default()
+            }),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..Default::default()
+        })
+        .insert(Movable);
     // // sphere
     // commands
     //     .spawn_bundle(PbrBundle {

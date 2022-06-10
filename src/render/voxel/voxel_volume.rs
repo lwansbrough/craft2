@@ -23,15 +23,16 @@ impl VoxelVolume {
     pub fn with_resolution(size: [u32; 3], voxels_per_meter: u32) -> Self {
         let max_size = size[0].max(size[1]).max(size[2]);
         let resolution = 1.0f32 / (voxels_per_meter as f32);
+
         VoxelVolume {
             resolution,
             size: Vec3::new(size[0] as f32, size[1] as f32, size[2] as f32),
             palette: [0;  256],
             data: Octree::new((max_size as f32).log2() as u8),
             mesh: Mesh::from(shape::Box::new(
-                resolution * size[0] as f32,
-                resolution * size[1] as f32,
-                resolution * size[2] as f32
+                resolution * (size[0] as f32),
+                resolution * (size[1] as f32),
+                resolution * (size[2] as f32)
             ))
         }
     }
