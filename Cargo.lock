@@ -1165,6 +1165,7 @@ dependencies = [
  "bevy",
  "bevy_flycam",
  "bincode",
+ "rand",
  "serde",
 ]
 

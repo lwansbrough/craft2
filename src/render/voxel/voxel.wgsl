@@ -93,10 +93,10 @@ struct Stack {
 
 struct TraceResult {
     color: vec4<f32>;
-    distance: f32;
+    point: vec3<f32>;
 };
 
-fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>) -> TraceResult {
+fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, ray_origin: vec3<f32>) -> TraceResult {
     let ray_dir_inv = 1.0 / ray_dir;
 
     var POS = array<vec3<f32>, 8>(
@@ -137,12 +137,20 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>) -> TraceResult {
         let scale = 1.0 / pow(2.0, f32(depth));
         let grid = &voxel_volume.indirection_pool[pool_index];
 
-        // var max_depth = u32(floor(8.0 * min(1.0, 100.0 / curr_dist) + 1.0));
+        // TODO: LOD based on distance: only traverse octree up to a decreasing depth based on distance.
+        // average colour of visited nodes so we have an average colour to use when the max depth is reached.
+        let approx_dist = (length(ray_origin - ray_position) - view.near) / view.far;
+        // let fov = 2.0 * atan(1.0 / view.view_proj[1][1]);
+        let fov = 3.14159 / 4.0; // get from view projection?
+        let pixel_scale = -approx_dist * (2.0 / view.height - 1.0) * tan(fov / 2.0) * 2.0;
+        let voxels_per_pixel = pixel_scale * (1.0 / voxel_volume.resolution);
 
-        // if (depth == max_depth) {
+        let max_depth = log2(voxel_volume.size.x);
+        let lod_max_depth = u32(floor(max_depth - min(max((log2(voxels_per_pixel.x) + 1.0) * 2.0, 1.0), max_depth)) + 1.0);
 
-        // }
-        // else {}
+        if (depth > lod_max_depth) {
+            return TraceResult(vec4<f32>(1.0, 0.0, 0.0, 1.0), ray_dir * approx_dist);
+        }
 
         for (var curr_grid_index: u32 = grid_index; curr_grid_index < 8u; curr_grid_index = curr_grid_index + 1u) {
             let cell_center = center + scale * POS[curr_grid_index];
@@ -209,7 +217,7 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>) -> TraceResult {
         }
     }
 
-    return TraceResult(color, hit_dist);
+    return TraceResult(color, ray_position + ray_dir * hit_dist);
 }
 
 [[stage(vertex)]]
@@ -241,11 +249,13 @@ struct FragmentInput {
 
 struct FragmentOutput {
     [[location(0)]] color: vec4<f32>;
-    // [[builtin(frag_depth)]] depth: f32;
+    [[builtin(frag_depth)]] depth: f32;
 };
 
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> FragmentOutput {
+    // TODO: Allow having a 256x256x256 voxel volume in a 256x1x256 box
+
     let world_size = voxel_volume.size * voxel_volume.resolution;
     let half_world_size = world_size / 2.0;
     // let model_world_position = voxel_volume_uniform.transform[3].xyz;
@@ -260,13 +270,16 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let t = -(model_ray_origin * model_n - d) / (model_ray_dir * model_n); // division by model_ray_dir here blows t up to a huge number? or maybe model_ray_origin is too big by this point (ie. miscalculated?)
     let f = sign(floor(abs(model_ray_origin) * 2.0 / world_size));
     let best_t = max(max(t.x * f.x, t.y * f.y), t.z * f.z);
-    let best = select(model_back_face_pos, model_ray_origin + best_t * model_ray_dir, f.x > 0.0 || f.y > 0.0 || f.z > 0.0);
+    // let best = select(model_back_face_pos, model_ray_origin + best_t * model_ray_dir, f.x > 0.0 || f.y > 0.0 || f.z > 0.0);
+    let best = model_ray_origin + best_t * model_ray_dir;
 
     let model_front_face_pos = best / half_world_size; // [-1, 1]
     let model_front_face_ray_dir = normalize(model_front_face_pos - model_ray_origin);
 
-    let result = trace_voxel(model_front_face_ray_dir, model_front_face_pos);
+    let result = trace_voxel(model_front_face_ray_dir, model_front_face_pos, model_ray_origin);
 
-    // return FragmentOutput(result.color, result.distance);
-    return FragmentOutput(result.color);
+    let distance = length(result.point - model_ray_origin);
+
+    return FragmentOutput(result.color, (view.far - distance) / view.far);
+    // return FragmentOutput(result.color);
 }

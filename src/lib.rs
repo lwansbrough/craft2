@@ -1,11 +1,13 @@
 pub mod render;
 pub mod voxel;
+// pub mod worldgen;
 
 use bevy::prelude::Color;
 
 pub use self::{
     render::*,
     voxel::*,
+    // worldgen::*
 };
 
 pub fn u24_to_bytes(v: u32) -> [u8; 3] {

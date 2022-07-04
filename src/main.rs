@@ -18,6 +18,8 @@ use bevy::{
 };
 use craft2::{VoxelVolumePlugin, VoxelVolume, VoxelBundle, color_to_rgba_u32, u24_to_bytes};
 use bevy_flycam::{PlayerPlugin, FlyCam, MovementSettings};
+use rand::{Rng, distributions::Uniform, distributions::Distribution };
+
 
 fn main() {
     App::new()
@@ -44,16 +46,24 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut voxel_volumes: ResMut<Assets<VoxelVolume>>,
 ) {
-    let mut test = VoxelVolume::new([32, 32, 32]);
-    test.palette[0] = color_to_rgba_u32(Color::ORANGE_RED);
-    test.palette[1] = color_to_rgba_u32(Color::LIME_GREEN);
-    test.palette[2] = color_to_rgba_u32(Color::BLUE);
-    test.palette[3] = color_to_rgba_u32(Color::YELLOW);
+    let mut rng = rand::thread_rng();
+    let uni = Uniform::from(0.0..=1.0f32);
+    let uni2 = Uniform::from(0u32..=255);
 
-    for x in 0..=31 {
-        for y in 0..=31 {
-            for z in 0..=31 {
-                test.data.add_data(x, y, z, u24_to_bytes((x as u32 + y as u32 + z as u32) % 4));
+    let mut test = VoxelVolume::new([64, 64, 64]);
+    for x in 0..=255 {
+        let r = uni.sample(&mut rng);
+        let g = uni.sample(&mut rng);
+        let b = uni.sample(&mut rng);
+
+        test.palette[x] = color_to_rgba_u32(Color::rgba(r, g, b, 1.0));
+    }
+
+    for x in 0..=63 {
+        for y in 0..=63 {
+            for z in 0..=63 {
+                let n1: u32 = uni2.sample(&mut rng);
+                test.data.add_data(x, y, z, u24_to_bytes(n1));
             }
         }
     }
@@ -61,10 +71,10 @@ fn setup(
     let test_handle = voxel_volumes.add(test);
 
     // voxel volume
-    for x in 0..32 {
-        for z in 0..32 {
+    for x in 0..16 {
+        for z in 0..16 {
             commands.spawn_bundle(VoxelBundle {
-                transform: Transform::from_xyz((x * 2) as f32, 1.0, (z * 2) as f32),
+                transform: Transform::from_xyz((x * 4) as f32, 1.0, (z * 4) as f32),
                 volume: test_handle.clone(),
                 ..Default::default()
             });
