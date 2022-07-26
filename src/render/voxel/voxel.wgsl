@@ -148,9 +148,9 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, ray_origin: vec3<f32
         let max_depth = log2(voxel_volume.size.x);
         let lod_max_depth = u32(floor(max_depth - min(max((log2(voxels_per_pixel.x) + 1.0) * 2.0, 1.0), max_depth)) + 1.0);
 
-        if (depth > lod_max_depth) {
-            return TraceResult(vec4<f32>(1.0, 0.0, 0.0, 1.0), ray_dir * approx_dist);
-        }
+        // if (depth > lod_max_depth) {
+        //     return TraceResult(vec4<f32>(1.0, 0.0, 0.0, 1.0), ray_dir * approx_dist);
+        // }
 
         for (var curr_grid_index: u32 = grid_index; curr_grid_index < 8u; curr_grid_index = curr_grid_index + 1u) {
             let cell_center = center + scale * POS[curr_grid_index];
@@ -217,7 +217,7 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, ray_origin: vec3<f32
         }
     }
 
-    return TraceResult(color, ray_position + ray_dir * hit_dist);
+    return TraceResult(color, ray_origin + ray_dir * hit_dist);
 }
 
 [[stage(vertex)]]
@@ -278,8 +278,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
 
     let result = trace_voxel(model_front_face_ray_dir, model_front_face_pos, model_ray_origin);
 
-    let distance = length(result.point - model_ray_origin);
+    let distance = length(result.point);
 
     return FragmentOutput(result.color, (view.far - distance) / view.far);
-    // return FragmentOutput(result.color);
 }

@@ -50,7 +50,7 @@ fn setup(
     let uni = Uniform::from(0.0..=1.0f32);
     let uni2 = Uniform::from(0u32..=255);
 
-    let mut test = VoxelVolume::new([64, 64, 64]);
+    let mut test = VoxelVolume::new([16, 16, 16]);
     for x in 0..=255 {
         let r = uni.sample(&mut rng);
         let g = uni.sample(&mut rng);
@@ -59,9 +59,9 @@ fn setup(
         test.palette[x] = color_to_rgba_u32(Color::rgba(r, g, b, 1.0));
     }
 
-    for x in 0..=63 {
-        for y in 0..=63 {
-            for z in 0..=63 {
+    for x in 0..=15 {
+        for y in 0..=15 {
+            for z in 0..=15 {
                 let n1: u32 = uni2.sample(&mut rng);
                 test.data.add_data(x, y, z, u24_to_bytes(n1));
             }
@@ -71,13 +71,15 @@ fn setup(
     let test_handle = voxel_volumes.add(test);
 
     // voxel volume
-    for x in 0..16 {
-        for z in 0..16 {
-            commands.spawn_bundle(VoxelBundle {
-                transform: Transform::from_xyz((x * 4) as f32, 1.0, (z * 4) as f32),
-                volume: test_handle.clone(),
-                ..Default::default()
-            });
+    for x in 0..128 {
+        for y in 0..1 {
+            for z in 0..128 {
+                commands.spawn_bundle(VoxelBundle {
+                    transform: Transform::from_xyz((x * 1) as f32, (y * 1) as f32, (z * 1) as f32),
+                    volume: test_handle.clone(),
+                    ..Default::default()
+                });
+            }
         }
     }
     
