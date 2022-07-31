@@ -1,5 +1,4 @@
 use bevy::{
-    core::Time,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     ecs::prelude::*,
     input::Input,
@@ -8,16 +7,14 @@ use bevy::{
         AmbientLight, DirectionalLight, DirectionalLightBundle, PbrBundle, PointLight,
         PointLightBundle, StandardMaterial,
     },
-    prelude::{App, Assets, BuildChildren, KeyCode, Transform, Msaa},
+    prelude::{App, Assets, BuildChildren, KeyCode, Transform, Msaa, Camera3dBundle, OrthographicProjection},
     render::{
-        camera::{OrthographicProjection, PerspectiveCameraBundle},
         color::Color,
         mesh::{shape, Mesh},
     },
     DefaultPlugins,
 };
-use craft2::{VoxelVolumePlugin, VoxelVolume, VoxelBundle, color_to_rgba_u32, u24_to_bytes};
-use bevy_flycam::{PlayerPlugin, FlyCam, MovementSettings};
+use craft2::{VoxelVolumePlugin, VoxelVolumeRenderPlugin, VoxelVolume, VoxelBundle, color_to_rgba_u32, u24_to_bytes, utility::{PlayerPlugin, MovementSettings, FlyCam}};
 use rand::{Rng, distributions::Uniform, distributions::Distribution };
 
 
@@ -27,6 +24,7 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(VoxelVolumePlugin)
+        .add_plugin(VoxelVolumeRenderPlugin)
         .add_plugin(PlayerPlugin)
         .insert_resource(MovementSettings {
             sensitivity: 0.00015, // default: 0.00012
@@ -35,9 +33,6 @@ fn main() {
         .add_startup_system(setup)
         .run();
 }
-
-#[derive(Component)]
-struct Movable;
 
 /// set up a simple 3D scene
 fn setup(
@@ -59,6 +54,15 @@ fn setup(
         test.palette[x] = color_to_rgba_u32(Color::rgba(r, g, b, 1.0));
     }
 
+    // let mut test2 = VoxelVolume::new([16, 16, 16]);
+    // for x in 0..=255 {
+    //     let r = uni.sample(&mut rng);
+    //     let g = uni.sample(&mut rng);
+    //     let b = uni.sample(&mut rng);
+
+    //     test2.palette[x] = color_to_rgba_u32(Color::rgba(r, g, b, 1.0));
+    // }
+
     for x in 0..=15 {
         for y in 0..=15 {
             for z in 0..=15 {
@@ -67,15 +71,38 @@ fn setup(
             }
         }
     }
+
+    // for x in 0..=15 {
+    //     for y in 0..=15 {
+    //         for z in 0..=15 {
+    //             let n1: u32 = uni2.sample(&mut rng);
+    //             test2.data.add_data(x, y, z, u24_to_bytes(n1));
+    //         }
+    //     }
+    // }
     
     let test_handle = voxel_volumes.add(test);
+    // let test2_handle = voxel_volumes.add(test2);
+
+
+    // commands.spawn_bundle(VoxelBundle {
+    //     transform: Transform::from_xyz(0.0, 0.0, 0.0),
+    //     volume: test_handle.clone(),
+    //     ..Default::default()
+    // });
+
+    // commands.spawn_bundle(VoxelBundle {
+    //     transform: Transform::from_xyz(2.0, 2.0, 2.0),
+    //     volume: test2_handle.clone(),
+    //     ..Default::default()
+    // });
 
     // voxel volume
-    for x in 0..128 {
+    for x in 0..1 {
         for y in 0..1 {
-            for z in 0..128 {
+            for z in 0..1 {
                 commands.spawn_bundle(VoxelBundle {
-                    transform: Transform::from_xyz((x * 1) as f32, (y * 1) as f32, (z * 1) as f32),
+                    transform: Transform::from_xyz((x * 1 + 2) as f32, (y * 1 + 2) as f32, (z * 1 + 2) as f32),
                     volume: test_handle.clone(),
                     ..Default::default()
                 });
@@ -157,8 +184,7 @@ fn setup(
     //         }),
     //         transform: Transform::from_xyz(0.0, 0.5, 0.0),
     //         ..Default::default()
-    //     })
-    //     .insert(Movable);
+    //     });
     commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Box::new(1.0, 1.0, 1.0))),
@@ -168,8 +194,7 @@ fn setup(
             }),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..Default::default()
-        })
-        .insert(Movable);
+        });
     // // sphere
     // commands
     //     .spawn_bundle(PbrBundle {
@@ -183,8 +208,7 @@ fn setup(
     //         }),
     //         transform: Transform::from_xyz(1.5, 1.0, 1.5),
     //         ..Default::default()
-    //     })
-    //     .insert(Movable);
+    //     });
 
     // ambient light
     commands.insert_resource(AmbientLight {
@@ -300,12 +324,4 @@ fn setup(
         },
         ..Default::default()
     });
-
-    // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
-        // transform: Transform::from_xyz(0.0, 1.0, -10.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
-        ..Default::default()
-    })
-    .insert(FlyCam);
 }

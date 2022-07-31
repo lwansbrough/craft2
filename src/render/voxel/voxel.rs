@@ -1,4 +1,7 @@
-use bevy::{render::{render_phase::{SetItemPipeline, EntityRenderCommand, TrackedRenderPass, RenderCommandResult, DrawFunctions, RenderPhase}, render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, SpecializedRenderPipeline, RenderPipelineDescriptor, Shader, PipelineCache, SpecializedRenderPipelines, IndexFormat, PrimitiveTopology, PolygonMode, PrimitiveState, FrontFace, VertexState, VertexBufferLayout, ColorTargetState, TextureFormat, ColorWrites, DepthStencilState, CompareFunction, StencilState, StencilFaceState, DepthBiasState, FragmentState, VertexStepMode, MultisampleState, VertexAttribute, VertexFormat, BlendState, Face, BindGroup, BindGroupEntry, BindGroupDescriptor, BufferSize, std140::AsStd140}, renderer::RenderDevice, render_asset::RenderAssets, view::{Msaa, ExtractedView, VisibleEntities, ViewUniform, ViewUniforms, ViewUniformOffset}, mesh::Mesh, texture::BevyDefault, render_component::{ComponentUniforms, DynamicUniformIndex}}, prelude::{FromWorld, World, Handle, Entity, Res, ResMut, Query, With, GlobalTransform, ComputedVisibility, Local, Commands, Component}, ecs::system::{lifetimeless::{SRes, SQuery, Read}, SystemParamItem}, core_pipeline::Transparent3d, math::Mat4};
+use bevy::{
+    render::{
+        render_phase::{SetItemPipeline, EntityRenderCommand, TrackedRenderPass, RenderCommandResult, DrawFunctions, RenderPhase},
+        render_resource::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages, BindingType, BufferBindingType, SpecializedRenderPipeline, RenderPipelineDescriptor, Shader, ShaderType, PipelineCache, SpecializedRenderPipelines, IndexFormat, PrimitiveTopology, PolygonMode, PrimitiveState, FrontFace, VertexState, VertexBufferLayout, ColorTargetState, TextureFormat, ColorWrites, DepthStencilState, CompareFunction, StencilState, StencilFaceState, DepthBiasState, FragmentState, VertexStepMode, MultisampleState, VertexAttribute, VertexFormat, BlendState, Face, BindGroup, BindGroupEntry, BindGroupDescriptor, BufferSize}, renderer::RenderDevice, render_asset::RenderAssets, view::{Msaa, ExtractedView, VisibleEntities, ViewUniform, ViewUniforms, ViewUniformOffset}, mesh::Mesh, texture::BevyDefault, extract_component::{ComponentUniforms, DynamicUniformIndex}, Extract}, prelude::{FromWorld, World, Handle, Entity, Res, ResMut, Query, With, GlobalTransform, ComputedVisibility, Local, Commands, Component}, ecs::system::{lifetimeless::{SRes, SQuery, Read}, SystemParamItem}, core_pipeline::{core_3d::{Transparent3d}}, math::Mat4};
 
 use crate::{VOXEL_SHADER_HANDLE, VoxelVolume, VoxelVolumeUniform, GpuBufferInfo};
 
@@ -21,7 +24,7 @@ impl FromWorld for VoxelPipeline {
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: true,
-                        min_binding_size: BufferSize::new(ViewUniform::std140_size_static() as u64),
+                        min_binding_size: Some(ViewUniform::min_size()),
                     },
                     count: None,
                 }
@@ -37,7 +40,7 @@ impl FromWorld for VoxelPipeline {
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: true,
-                        min_binding_size: BufferSize::new(VoxelVolumeUniform::std140_size_static() as u64),
+                        min_binding_size: Some(VoxelVolumeUniform::min_size()),
                     },
                     count: None,
                 }
@@ -119,11 +122,11 @@ impl SpecializedRenderPipeline for VoxelPipeline {
                 shader: VOXEL_SHADER_HANDLE.typed::<Shader>(),
                 shader_defs,
                 entry_point: "fragment".into(),
-                targets: vec![ColorTargetState {
+                targets: vec![Some(ColorTargetState {
                     format: TextureFormat::bevy_default(),
                     blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
-                }],
+                })],
             }),
             layout: Some(vec![self.view_layout.clone(), self.voxel_uniform_layout.clone(), self.voxel_layout.clone()]),
             primitive: PrimitiveState {
@@ -335,17 +338,17 @@ impl EntityRenderCommand for DrawVoxel {
 pub fn extract_voxel_volumes(
     mut commands: Commands,
     mut previous_uniforms_len: Local<usize>,
-    voxel_volumes: Query<(
+    voxel_volumes: Extract<Query<(
         Entity,
         &ComputedVisibility,
         &GlobalTransform,
         &Handle<VoxelVolume>,
-    )>,
+    )>>,
     views: Query<&ExtractedView>,
 ) {
     let mut uniforms = Vec::with_capacity(*previous_uniforms_len);
     for (entity, computed_visibility, transform, handle) in voxel_volumes.iter() {
-        if !computed_visibility.is_visible {
+        if !computed_visibility.is_visible() {
             continue;
         }
         let transform = transform.compute_matrix();

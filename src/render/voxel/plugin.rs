@@ -1,4 +1,4 @@
-use bevy::{prelude::{Plugin, Assets, HandleUntyped, App, Handle, AddAsset, Msaa}, render::{render_resource::{Shader, SpecializedRenderPipelines}, render_component::{ExtractComponentPlugin, UniformComponentPlugin}, render_asset::RenderAssetPlugin, RenderApp, RenderStage, render_phase::AddRenderCommand}, core_pipeline::{Opaque3d, AlphaMask3d, Transparent3d}, reflect::TypeUuid};
+use bevy::{prelude::{Plugin, Assets, HandleUntyped, App, Handle, AddAsset, Msaa}, render::{render_resource::{Shader, SpecializedRenderPipelines}, extract_component::{ExtractComponentPlugin, UniformComponentPlugin}, render_asset::RenderAssetPlugin, RenderApp, RenderStage, render_phase::AddRenderCommand}, core_pipeline::{core_3d::{Opaque3d, AlphaMask3d, Transparent3d}}, reflect::TypeUuid};
 
 use crate::{VoxelVolume, DrawVoxels, VoxelPipeline, DEFAULT_VOXEL_VOLUME_HANDLE, VoxelVolumeUniform};
 
@@ -7,11 +7,20 @@ pub const VOXEL_SHADER_HANDLE: HandleUntyped =
 pub const DEPTH_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 2007950517632262887);
 
-/// Sets up the Voxel render infrastructure
 #[derive(Default)]
 pub struct VoxelVolumePlugin;
+#[derive(Default)]
+pub struct VoxelVolumeRenderPlugin;
 
 impl Plugin for VoxelVolumePlugin {
+    fn build(&self, app: &mut App) {
+        
+        app.add_asset::<VoxelVolume>();
+    }
+}
+
+
+impl Plugin for VoxelVolumeRenderPlugin {
     fn build(&self, app: &mut App) {
         let mut shaders = app.world.resource_mut::<Assets<Shader>>();
         shaders.set_untracked(
@@ -25,8 +34,7 @@ impl Plugin for VoxelVolumePlugin {
 
         app.insert_resource(Msaa { samples: 1 });
 
-        app.add_asset::<VoxelVolume>()
-            .add_plugin(ExtractComponentPlugin::<Handle<VoxelVolume>>::default())
+        app.add_plugin(ExtractComponentPlugin::<Handle<VoxelVolume>>::default())
             .add_plugin(RenderAssetPlugin::<VoxelVolume>::default());
 
         app.world

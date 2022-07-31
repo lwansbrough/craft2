@@ -1,6 +1,8 @@
 pub mod render;
 pub mod voxel;
 // pub mod worldgen;
+pub mod zoning;
+pub mod utility;
 
 use bevy::prelude::Color;
 

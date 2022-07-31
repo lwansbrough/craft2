@@ -1,4 +1,4 @@
-use bevy::{reflect::TypeUuid, math::{Vec3, Mat4}, render::{render_asset::{RenderAsset, PrepareAssetError}, render_resource::{Buffer, BindGroup, BufferInitDescriptor, BufferUsages, BindGroupDescriptor, BindGroupEntry, IndexFormat, std140::AsStd140}, renderer::RenderDevice}, ecs::system::{lifetimeless::SRes, SystemParamItem}, core::{cast_slice, bytes_of}, prelude::{HandleUntyped, Component, ResMut, Assets, Mesh, shape}};
+use bevy::{reflect::TypeUuid, math::{Vec3, Mat4}, render::{render_asset::{RenderAsset, PrepareAssetError}, render_resource::{Buffer, BindGroup, BufferInitDescriptor, BufferUsages, BindGroupDescriptor, BindGroupEntry, IndexFormat, ShaderType}, renderer::RenderDevice}, ecs::system::{lifetimeless::SRes, SystemParamItem}, core::{cast_slice, bytes_of}, prelude::{HandleUntyped, Component, ResMut, Assets, Mesh, shape}};
 
 use crate::{VoxelPipeline, Octree};
 
@@ -74,7 +74,7 @@ impl VoxelVolume {
 }
 
 /// The GPU representation of the uniform data of a [`VoxelVolume`].
-#[derive(Component, Clone, AsStd140)]
+#[derive(Component, Clone, ShaderType)]
 pub struct VoxelVolumeUniform {
     pub transform: Mat4,
     pub inverse_transform: Mat4,

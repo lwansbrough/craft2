@@ -1,63 +1,63 @@
 struct View {
-    view_proj: mat4x4<f32>;
-    view: mat4x4<f32>;
-    inverse_view: mat4x4<f32>;
-    projection: mat4x4<f32>;
-    world_position: vec3<f32>;
-    near: f32;
-    far: f32;
-    width: f32;
-    height: f32;
+    view_proj: mat4x4<f32>,
+    view: mat4x4<f32>,
+    inverse_view: mat4x4<f32>,
+    projection: mat4x4<f32>,
+    world_position: vec3<f32>,
+    near: f32,
+    far: f32,
+    width: f32,
+    height: f32
 };
 
 struct VoxelVolumeUniform {
-    transform: mat4x4<f32>;
-    inverse_transform: mat4x4<f32>;
-    inverse_transpose_model: mat4x4<f32>;
+    transform: mat4x4<f32>,
+    inverse_transform: mat4x4<f32>,
+    inverse_transpose_model: mat4x4<f32>,
 };
 
 struct GridCell {
-    data: u32;
+    data: u32
 };
 
 struct IndirectionGrid {
-    cells: array<GridCell, 8>;
+    cells: array<GridCell, 8>
 };
 
 struct VoxelVolume {
-    [[size(16)]] resolution: vec3<f32>;
-    [[size(16)]] size: vec3<f32>;
-    palette: array<u32, 256>;
-    indirection_pool: array<IndirectionGrid>;
+    @size(16) resolution: vec3<f32>,
+    @size(16) size: vec3<f32>,
+    palette: array<u32, 256>,
+    indirection_pool: array<IndirectionGrid>
 };
 
 struct Vertex {
-    [[location(0)]] normal: vec3<f32>;
-    [[location(1)]] position: vec3<f32>;
-    [[location(2)]] uv: vec2<f32>;
+    @location(0) normal: vec3<f32>,
+    @location(1) position: vec3<f32>,
+    @location(2) uv: vec2<f32>
 };
 
 struct VertexOutput {
-    [[builtin(position)]] clip_position: vec4<f32>;
-    [[location(0)]] world_position: vec4<f32>;
-    [[location(1)]] world_normal: vec3<f32>;
-    [[location(2)]] uv: vec2<f32>;
-    [[location(3)]] vertex_position: vec3<f32>;
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec4<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) vertex_position: vec3<f32>
 };
 
-[[group(0), binding(0)]]
+@group(0) @binding(0)
 var<uniform> view: View;
 
-[[group(1), binding(0)]]
+@group(1) @binding(0)
 var<uniform> voxel_volume_uniform: VoxelVolumeUniform;
 
-[[group(2), binding(0)]]
+@group(2) @binding(0)
 var<storage, read> voxel_volume: VoxelVolume;
 
 struct Intersection {
-    hit: bool;
-    // point: vec3<f32>;
-    distance: f32;
+    hit: bool,
+    // point: vec3<f32>,
+    distance: f32
 };
 
 fn raybox_intersect(box_min: vec3<f32>, box_max: vec3<f32>, ray_dir: vec3<f32>, ray_inv_dir: vec3<f32>, ray_origin: vec3<f32>) -> Intersection {
@@ -85,15 +85,15 @@ let CELL_TYPE_DATA = 2u;
 let CELL_TYPE_EMPTY = 0u;
 
 struct Stack {
-    pool_index: u32;
-    grid_index: u32;
-    depth: u32;
-    center: vec3<f32>;
+    pool_index: u32,
+    grid_index: u32,
+    depth: u32,
+    center: vec3<f32>,
 };
 
 struct TraceResult {
-    color: vec4<f32>;
-    point: vec3<f32>;
+    color: vec4<f32>,
+    hit_point: vec3<f32>
 };
 
 fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, ray_origin: vec3<f32>) -> TraceResult {
@@ -220,7 +220,7 @@ fn trace_voxel(ray_dir: vec3<f32>, ray_position: vec3<f32>, ray_origin: vec3<f32
     return TraceResult(color, ray_origin + ray_dir * hit_dist);
 }
 
-[[stage(vertex)]]
+@vertex
 fn vertex(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
     let world_position = voxel_volume_uniform.transform * vec4<f32>(vertex.position, 1.0);
@@ -239,20 +239,20 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 }
 
 struct FragmentInput {
-    [[builtin(front_facing)]] is_front: bool;
-    [[builtin(position)]] position: vec4<f32>;
-    [[location(0)]] world_position: vec4<f32>;
-    [[location(1)]] world_normal: vec3<f32>;
-    [[location(2)]] uv: vec2<f32>;
-    [[location(3)]] vertex_position: vec3<f32>;
+    @builtin(front_facing) is_front: bool,
+    @builtin(position) position: vec4<f32>,
+    @location(0) world_position: vec4<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) vertex_position: vec3<f32>
 };
 
 struct FragmentOutput {
-    [[location(0)]] color: vec4<f32>;
-    [[builtin(frag_depth)]] depth: f32;
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32
 };
 
-[[stage(fragment)]]
+@fragment
 fn fragment(in: FragmentInput) -> FragmentOutput {
     // TODO: Allow having a 256x256x256 voxel volume in a 256x1x256 box
 
@@ -270,15 +270,15 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let t = -(model_ray_origin * model_n - d) / (model_ray_dir * model_n); // division by model_ray_dir here blows t up to a huge number? or maybe model_ray_origin is too big by this point (ie. miscalculated?)
     let f = sign(floor(abs(model_ray_origin) * 2.0 / world_size));
     let best_t = max(max(t.x * f.x, t.y * f.y), t.z * f.z);
-    // let best = select(model_back_face_pos, model_ray_origin + best_t * model_ray_dir, f.x > 0.0 || f.y > 0.0 || f.z > 0.0);
-    let best = model_ray_origin + best_t * model_ray_dir;
+    let best = select(model_back_face_pos, model_ray_origin + best_t * model_ray_dir, f.x > 0.0 || f.y > 0.0 || f.z > 0.0);
+    // let best = model_ray_origin + best_t * model_ray_dir;
 
+    let model_front_face_ray_dir = normalize(best - model_ray_origin);
     let model_front_face_pos = best / half_world_size; // [-1, 1]
-    let model_front_face_ray_dir = normalize(model_front_face_pos - model_ray_origin);
 
     let result = trace_voxel(model_front_face_ray_dir, model_front_face_pos, model_ray_origin);
 
-    let distance = length(result.point);
+    let distance = length(result.hit_point);
 
     return FragmentOutput(result.color, (view.far - distance) / view.far);
 }
