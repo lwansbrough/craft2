@@ -8,7 +8,7 @@
             "name": "Client Debug",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceRoot}/target/debug/craft2.exe",
+            "program": "${workspaceRoot}/target/debug/client.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
